@@ -983,8 +983,15 @@
         <div class="settings-content">
             <h2>Settings</h2>
 
+            <!-- Project Name Section -->
+            <label for="projectNameInput">Project Name</label>
+            <input type="text" id="projectNameInput" placeholder="Enter your project name...">
+            <p class="info-text">
+                This name will appear in exported files and the page title.
+            </p>
+
             <!-- API Key Section -->
-            <label for="apiKeyInput">OpenAI API Key</label>
+            <label for="apiKeyInput" style="margin-top: 20px;">OpenAI API Key</label>
             <input type="password" id="apiKeyInput" placeholder="sk-...">
             <p class="info-text">
                 Your API key is stored locally on your device only and is never shared.
@@ -993,8 +1000,8 @@
                 Don't have an API key? <a href="https://platform.openai.com/api-keys" target="_blank">Get one here</a>
             </p>
             <div class="button-group">
-                <button class="save-btn" id="saveApiKey">Save</button>
-                <button class="clear-btn" id="clearApiKey">Clear</button>
+                <button class="save-btn" id="saveSettings">Save</button>
+                <button class="clear-btn" id="clearApiKey">Clear API Key</button>
             </div>
 
             <!-- Action Buttons (visible in portrait mode) -->
@@ -1021,6 +1028,13 @@
 
         // Initialize with 5 rows
         function init() {
+            // Load project name
+            const savedProjectName = localStorage.getItem('project_name');
+            if (savedProjectName) {
+                updateProjectName(savedProjectName);
+            }
+
+            // Load storyboard data
             const savedData = localStorage.getItem('storyboardData');
             if (savedData) {
                 loadData(JSON.parse(savedData));
@@ -1718,8 +1732,10 @@
                 document.body.removeChild(container);
             }
 
-            // Download the PDF
-            pdf.save(`storyboard_${Date.now()}.pdf`);
+            // Download the PDF with project name if available
+            const projectName = localStorage.getItem('project_name');
+            const fileName = projectName ? `${projectName.replace(/\s+/g, '_')}_${Date.now()}.pdf` : `storyboard_${Date.now()}.pdf`;
+            pdf.save(fileName);
         }
 
         // Export single shot as PNG
@@ -1812,9 +1828,11 @@
         function saveAsJSON() {
             const data = collectData();
 
-            // Include API key in the export
+            // Include project name and API key in the export
+            const projectName = localStorage.getItem('project_name');
             const apiKey = localStorage.getItem('openai_api_key');
             const exportData = {
+                projectName: projectName || null,
                 shots: data,
                 apiKey: apiKey || null
             };
@@ -1822,7 +1840,8 @@
             const json = JSON.stringify(exportData, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const link = document.createElement('a');
-            link.download = `storyboard_${Date.now()}.json`;
+            const fileName = projectName ? `${projectName.replace(/\s+/g, '_')}_${Date.now()}.json` : `storyboard_${Date.now()}.json`;
+            link.download = fileName;
             link.href = URL.createObjectURL(blob);
             link.click();
         }
@@ -1834,10 +1853,17 @@
                 try {
                     const parsedData = JSON.parse(e.target.result);
 
-                    // Check if this is the new format with apiKey
+                    // Check if this is the new format with projectName/apiKey
                     if (parsedData.shots && Array.isArray(parsedData.shots)) {
-                        // New format: { shots: [...], apiKey: "..." }
+                        // New format: { projectName: "...", shots: [...], apiKey: "..." }
                         loadData(parsedData.shots);
+
+                        // Restore project name if present
+                        if (parsedData.projectName) {
+                            localStorage.setItem('project_name', parsedData.projectName);
+                            updateProjectName(parsedData.projectName);
+                            console.log('Project name restored from file');
+                        }
 
                         // Restore API key if present
                         if (parsedData.apiKey) {
@@ -2032,12 +2058,21 @@
         // Settings modal functions
         function openSettings() {
             const modal = document.getElementById('settingsModal');
+            const projectNameInput = document.getElementById('projectNameInput');
             const apiKeyInput = document.getElementById('apiKeyInput');
+
+            // Load existing project name from localStorage
+            const savedProjectName = localStorage.getItem('project_name');
+            if (savedProjectName) {
+                projectNameInput.value = savedProjectName;
+            }
+
             // Load existing API key from localStorage
             const savedKey = localStorage.getItem('openai_api_key');
             if (savedKey) {
                 apiKeyInput.value = savedKey;
             }
+
             modal.classList.add('active');
         }
 
@@ -2046,17 +2081,28 @@
             modal.classList.remove('active');
         }
 
-        function saveApiKey() {
+        function saveSettings() {
+            const projectNameInput = document.getElementById('projectNameInput');
             const apiKeyInput = document.getElementById('apiKeyInput');
+            const projectName = projectNameInput.value.trim();
             const apiKey = apiKeyInput.value.trim();
 
+            // Save project name
+            if (projectName) {
+                localStorage.setItem('project_name', projectName);
+                updateProjectName(projectName);
+            } else {
+                localStorage.removeItem('project_name');
+                updateProjectName('Storyboard');
+            }
+
+            // Save API key
             if (apiKey) {
                 localStorage.setItem('openai_api_key', apiKey);
-                alert('API key saved successfully!');
-                closeSettings();
-            } else {
-                alert('Please enter an API key');
             }
+
+            alert('Settings saved successfully!');
+            closeSettings();
         }
 
         function clearApiKey() {
@@ -2067,9 +2113,14 @@
             }
         }
 
+        function updateProjectName(name) {
+            // Update page title
+            document.title = name || 'Storyboard';
+        }
+
         // Settings event listeners
         document.getElementById('settingsBtn').addEventListener('click', openSettings);
-        document.getElementById('saveApiKey').addEventListener('click', saveApiKey);
+        document.getElementById('saveSettings').addEventListener('click', saveSettings);
         document.getElementById('clearApiKey').addEventListener('click', clearApiKey);
         document.getElementById('cancelSettings').addEventListener('click', closeSettings);
 
