@@ -568,105 +568,143 @@
         /* Mobile - Landscape (Your primary use case) */
         @media (max-width: 926px) and (orientation: landscape) {
             body {
-                padding: 5px;
+                padding: 2px;
             }
 
             .header {
-                gap: 6px;
-                margin-bottom: 10px;
+                gap: 3px;
+                margin-bottom: 4px;
             }
 
             .header button {
-                padding: 6px 12px;
-                font-size: 11px;
+                padding: 4px 6px;
+                font-size: 9px;
             }
 
             .shot-counter {
-                gap: 8px;
-                font-size: 11px;
+                gap: 4px;
+                font-size: 8px;
+            }
+
+            .shot-counter .stat {
+                white-space: nowrap;
             }
 
             .auto-saved {
-                font-size: 11px;
+                font-size: 8px;
             }
 
             th {
-                padding: 6px;
-                font-size: 11px;
+                padding: 3px;
+                font-size: 9px;
+                white-space: nowrap;
             }
 
             td {
-                padding: 6px;
-                font-size: 11px;
+                padding: 3px;
+                font-size: 9px;
             }
 
             .shot-number {
-                width: 45px;
-                min-width: 45px;
+                width: 32px;
+                min-width: 32px;
+                max-width: 32px;
             }
 
             .shot-number input {
-                font-size: 11px;
+                font-size: 9px;
+                padding: 1px;
             }
 
+            /* Make textareas fit and show full placeholder */
             textarea {
-                min-height: 50px;
-                font-size: 12px;
-                padding: 4px;
+                min-height: 55px;
+                max-height: 70px;
+                font-size: 9px;
+                padding: 2px;
+                width: 100%;
+                line-height: 1.2;
+            }
+
+            textarea::placeholder {
+                font-size: 8px;
+                line-height: 1.1;
             }
 
             .status-select {
-                font-size: 11px;
-                padding: 4px;
+                font-size: 8px;
+                padding: 2px;
             }
 
             .status-notes {
-                min-height: 40px;
-                font-size: 11px;
+                min-height: 25px;
+                font-size: 8px;
             }
 
-            /* Optimize column widths for landscape */
+            /* Fixed table layout to control widths */
             table {
-                font-size: 11px;
+                font-size: 9px;
+                table-layout: fixed;
+                width: 100%;
             }
 
-            th:nth-child(2), /* Visual Action */
-            th:nth-child(3), /* Audio */
-            th:nth-child(4) { /* Shot Specs */
-                width: 20%;
-                min-width: 150px;
-            }
+            /* Precise column widths for landscape fit */
+            th:nth-child(1) { width: 32px; } /* Shot # */
+            th:nth-child(2) { width: 17%; }  /* Visual Action */
+            th:nth-child(3) { width: 17%; }  /* Audio */
+            th:nth-child(4) { width: 17%; }  /* Shot Specs */
+            th:nth-child(5) { width: 20%; }  /* Reference Images */
+            th:nth-child(6) { width: 11%; }  /* Status */
+            th:nth-child(7) { width: 35px; } /* Actions */
 
             .reference-images-cell {
-                min-width: 200px;
-                max-width: 400px;
+                min-width: unset;
+                max-width: unset;
+            }
+
+            .images-container {
+                gap: 6px;
             }
 
             .image-preview,
             .add-image-area {
-                width: 90px;
-                height: 90px;
+                width: 60px;
+                height: 60px;
             }
 
             .image-caption,
             .paste-input {
-                width: 90px;
-                font-size: 10px;
+                width: 60px;
+                font-size: 7px;
+            }
+
+            .add-image-area .plus {
+                font-size: 20px;
+            }
+
+            .add-image-area .hint {
+                font-size: 7px;
             }
 
             .action-buttons {
-                gap: 4px;
+                gap: 1px;
             }
 
             .action-buttons button {
-                width: 32px;
-                height: 32px;
-                font-size: 18px;
-                padding: 4px;
+                width: 26px;
+                height: 26px;
+                font-size: 14px;
+                padding: 2px;
             }
 
             .actions-cell {
-                min-width: 50px;
+                min-width: 35px;
+                max-width: 35px;
+            }
+
+            /* Hide lock button to save space */
+            .lock-toggle {
+                display: none;
             }
         }
 
