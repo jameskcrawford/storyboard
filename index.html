@@ -62,6 +62,7 @@
         #savePngBtn,
         #saveJsonBtn,
         #loadFileBtn,
+        #saveProjectBtn,
         #settingsBtn {
             background-color: #333;
             color: #fff;
@@ -953,7 +954,7 @@
         <select id="projectSelector" style="padding: 10px; background-color: #333; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">
             <option value="">Select Project...</option>
         </select>
-        <button id="saveProjectBtn">💾 Save</button>
+        <button id="saveProjectBtn">💾 Save Project</button>
         <button id="savePngBtn">📄 Save Project as PDF</button>
         <button id="settingsBtn">⚙️ Settings</button>
         <input type="file" id="fileInput" accept=".json">
@@ -1028,6 +1029,21 @@
                     <button id="modalDownloadBackup" style="background-color: #333; color: #fff;">💾 Download Backup</button>
                     <button id="modalLoadFile" style="background-color: #333; color: #fff;">📁 Load from File</button>
                 </div>
+            </div>
+
+            <!-- Delete Project Section -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #333;">
+                <h3 style="margin: 0 0 15px 0; color: #F44336; font-size: 18px;">Danger Zone</h3>
+                <label for="deleteProjectSelect">Delete a Project</label>
+                <select id="deleteProjectSelect" style="width: 100%; padding: 10px; background-color: #000; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 14px; margin-top: 8px;">
+                    <option value="">Select a project to delete...</option>
+                </select>
+                <div class="button-group" style="margin-top: 15px;">
+                    <button id="deleteProjectBtn" style="background-color: #F44336; color: #fff; width: 100%;">🗑️ Delete Project</button>
+                </div>
+                <p class="info-text" style="margin-top: 10px;">
+                    Warning: This will permanently delete the project and all associated videos from cloud storage.
+                </p>
             </div>
 
             <!-- Cancel Button -->
@@ -1144,6 +1160,17 @@
 
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error('R2 Upload Error:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorText,
+                    url: url,
+                    headers: {
+                        'x-amz-content-sha256': payloadHash,
+                        'x-amz-date': amzDate,
+                        'Authorization': authorization
+                    }
+                });
                 throw new Error(`Upload failed: ${response.status} - ${errorText}`);
             }
 
@@ -2487,7 +2514,7 @@
         }
 
         // Settings modal functions
-        function openSettings() {
+        async function openSettings() {
             const modal = document.getElementById('settingsModal');
             const projectNameInput = document.getElementById('projectNameInput');
             const apiKeyInput = document.getElementById('apiKeyInput');
@@ -2504,7 +2531,38 @@
                 apiKeyInput.value = savedKey;
             }
 
+            // Populate delete project dropdown
+            await populateDeleteDropdown();
+
             modal.classList.add('active');
+        }
+
+        // Populate delete project dropdown
+        async function populateDeleteDropdown() {
+            try {
+                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
+                const response = await fetch(listUrl);
+
+                const deleteSelect = document.getElementById('deleteProjectSelect');
+                deleteSelect.innerHTML = '<option value="">Select a project to delete...</option>';
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const projectList = await response.json();
+
+                for (const [id, info] of Object.entries(projectList)) {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = info.name;
+                    option.dataset.projectName = info.name;
+                    deleteSelect.appendChild(option);
+                }
+
+            } catch (error) {
+                console.error('Error loading projects for deletion:', error);
+            }
         }
 
         function closeSettings() {
@@ -2555,11 +2613,153 @@
             }
         }
 
+        // Delete project with confirmation
+        async function deleteProject() {
+            const deleteSelect = document.getElementById('deleteProjectSelect');
+            const projectId = deleteSelect.value;
+
+            if (!projectId) {
+                alert('Please select a project to delete');
+                return;
+            }
+
+            const selectedOption = deleteSelect.options[deleteSelect.selectedIndex];
+            const projectName = selectedOption.dataset.projectName;
+
+            // First confirmation
+            if (!confirm(`Are you sure you want to delete "${projectName}"?\n\nThis will permanently delete:\n- The project data\n- All associated videos\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            // Second confirmation - type project name
+            const confirmation = prompt(`To confirm deletion, please type the project name exactly:\n\n${projectName}`);
+
+            if (confirmation !== projectName) {
+                alert('Project name did not match. Deletion cancelled.');
+                return;
+            }
+
+            try {
+                // Delete project file from R2
+                const projectFileName = `projects/${projectId}.json`;
+                await deleteFromR2(projectFileName);
+
+                // Delete videos folder (note: R2 doesn't have folder deletion, so we note this)
+                // Videos will remain but won't be referenced
+                console.log(`Videos in videos/${projectId}/ will remain in storage`);
+
+                // Update project list
+                await removeFromProjectList(projectId);
+
+                // Refresh project list in dropdown and delete dropdown
+                await loadProjectList();
+                await populateDeleteDropdown();
+
+                // If we just deleted the current project, clear it
+                if (currentProjectId === projectId) {
+                    currentProjectId = null;
+                    localStorage.removeItem('currentProjectId');
+                    localStorage.removeItem('project_name');
+                    updateProjectName('No Project');
+
+                    // Reset selector
+                    const selector = document.getElementById('projectSelector');
+                    selector.value = '';
+                }
+
+                alert(`Project "${projectName}" has been deleted successfully.`);
+
+            } catch (error) {
+                console.error('Error deleting project:', error);
+                alert('Failed to delete project: ' + error.message);
+            }
+        }
+
+        // Delete file from R2
+        async function deleteFromR2(fileName) {
+            const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/${fileName}`;
+
+            const date = new Date();
+            const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+            const dateStamp = amzDate.substring(0, 8);
+
+            // Create canonical request for DELETE
+            const canonicalRequest = [
+                'DELETE',
+                `/${R2_CONFIG.bucketName}/${fileName}`,
+                '',
+                `host:${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
+                `x-amz-date:${amzDate}`,
+                '',
+                'host;x-amz-date',
+                'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' // empty payload hash
+            ].join('\n');
+
+            const canonicalRequestHash = await sha256Hex(canonicalRequest);
+
+            // Create string to sign
+            const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
+            const stringToSign = [
+                'AWS4-HMAC-SHA256',
+                amzDate,
+                credentialScope,
+                canonicalRequestHash
+            ].join('\n');
+
+            // Calculate signature
+            const signature = await calculateSignature(R2_CONFIG.secretAccessKey, dateStamp, stringToSign);
+
+            // Create authorization header
+            const authorization = `AWS4-HMAC-SHA256 Credential=${R2_CONFIG.accessKeyId}/${credentialScope}, SignedHeaders=host;x-amz-date, Signature=${signature}`;
+
+            // Make the request
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Host': `${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
+                    'x-amz-date': amzDate,
+                    'Authorization': authorization
+                }
+            });
+
+            if (!response.ok && response.status !== 404) {
+                throw new Error(`Delete failed: ${response.status}`);
+            }
+        }
+
+        // Remove project from index
+        async function removeFromProjectList(projectId) {
+            try {
+                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
+                let projectList = {};
+
+                try {
+                    const response = await fetch(listUrl);
+                    if (response.ok) {
+                        projectList = await response.json();
+                    }
+                } catch (e) {
+                    // No index exists
+                    return;
+                }
+
+                // Remove project from list
+                delete projectList[projectId];
+
+                // Save updated list
+                await uploadToR2('projects/index.json', JSON.stringify(projectList), 'application/json');
+
+            } catch (error) {
+                console.error('Error removing from project list:', error);
+            }
+        }
+
         // Settings event listeners
         document.getElementById('settingsBtn').addEventListener('click', openSettings);
         document.getElementById('saveSettings').addEventListener('click', saveSettings);
         document.getElementById('clearApiKey').addEventListener('click', clearApiKey);
         document.getElementById('cancelSettings').addEventListener('click', closeSettings);
+        document.getElementById('deleteProjectBtn').addEventListener('click', deleteProject);
 
         // Modal action button event listeners
         document.getElementById('modalSavePdf').addEventListener('click', () => {
