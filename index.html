@@ -153,43 +153,54 @@
         .textarea-container {
             position: relative;
             width: 100%;
+            min-height: 80px;
         }
 
         .textarea-buttons {
             position: absolute;
-            top: 4px;
+            bottom: 4px;
             right: 4px;
             display: flex;
-            gap: 4px;
+            gap: 3px;
             z-index: 10;
         }
 
         .textarea-buttons button {
-            background-color: rgba(30, 144, 255, 0.2);
-            border: 1px solid #1E90FF;
-            border-radius: 4px;
-            width: 28px;
-            height: 28px;
+            background-color: transparent;
+            border: none;
+            border-radius: 3px;
+            width: 20px;
+            height: 20px;
             padding: 0;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 11px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
+            color: #666;
+        }
+
+        /* Mic button is red */
+        .textarea-buttons .mic-btn {
+            color: #DC143C;
         }
 
         .textarea-buttons button:hover {
-            background-color: rgba(30, 144, 255, 0.4);
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .textarea-buttons .mic-btn:hover {
+            color: #FF1744;
         }
 
         .textarea-buttons button:active {
-            background-color: rgba(30, 144, 255, 0.6);
+            background-color: rgba(255, 255, 255, 0.2);
         }
 
         .textarea-buttons button.recording {
-            background-color: rgba(244, 67, 54, 0.4);
-            border-color: #F44336;
+            background-color: rgba(244, 67, 54, 0.3);
+            color: #FF1744;
             animation: pulse 1.5s infinite;
         }
 
@@ -208,7 +219,8 @@
             font-family: inherit;
             font-size: 14px;
             outline: none;
-            padding-right: 70px; /* Make room for buttons */
+            padding-right: 8px;
+            padding-bottom: 28px; /* Make room for buttons at bottom */
         }
 
         textarea:focus {
@@ -685,11 +697,24 @@
                 font-size: 14px;
                 line-height: 1.4;
                 padding: 6px;
+                padding-bottom: 50px; /* More room for stacked buttons */
             }
 
             textarea::placeholder {
                 font-size: 13px;
                 line-height: 1.3;
+            }
+
+            /* Stack mic and enhance buttons vertically in portrait */
+            .textarea-buttons {
+                flex-direction: column;
+                gap: 2px;
+            }
+
+            .textarea-buttons button {
+                width: 22px;
+                height: 22px;
+                font-size: 12px;
             }
 
             .reference-images-cell {
@@ -976,7 +1001,7 @@
                     <div class="textarea-container">
                         <textarea class="visual-action" placeholder="What do we see? What's happening?">${data?.visualAction || data?.shotDescription || ''}</textarea>
                         <div class="textarea-buttons">
-                            <button class="mic-btn" title="Voice Input">🎤</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
                             <button class="enhance-btn" title="Enhance with AI">✨</button>
                         </div>
                     </div>
@@ -985,7 +1010,7 @@
                     <div class="textarea-container">
                         <textarea class="audio" placeholder="What do we hear? Dialogue? Music? Sounds?">${data?.audio || data?.dialogue || ''}</textarea>
                         <div class="textarea-buttons">
-                            <button class="mic-btn" title="Voice Input">🎤</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
                             <button class="enhance-btn" title="Enhance with AI">✨</button>
                         </div>
                     </div>
@@ -994,7 +1019,7 @@
                     <div class="textarea-container">
                         <textarea class="shot-specs" placeholder="How do we film this? (e.g., CU, low angle, pan left)">${data?.shotSpecs || data?.subjects || ''}</textarea>
                         <div class="textarea-buttons">
-                            <button class="mic-btn" title="Voice Input">🎤</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
                             <button class="enhance-btn" title="Enhance with AI">✨</button>
                         </div>
                     </div>
