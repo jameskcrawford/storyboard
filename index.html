@@ -61,7 +61,8 @@
         #addShotBtn,
         #savePngBtn,
         #saveJsonBtn,
-        #loadFileBtn {
+        #loadFileBtn,
+        #settingsBtn {
             background-color: #333;
             color: #fff;
         }
@@ -148,6 +149,55 @@
             background-color: #1a1a1a;
         }
 
+        /* Textarea container with buttons */
+        .textarea-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .textarea-buttons {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            gap: 4px;
+            z-index: 10;
+        }
+
+        .textarea-buttons button {
+            background-color: rgba(30, 144, 255, 0.2);
+            border: 1px solid #1E90FF;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .textarea-buttons button:hover {
+            background-color: rgba(30, 144, 255, 0.4);
+        }
+
+        .textarea-buttons button:active {
+            background-color: rgba(30, 144, 255, 0.6);
+        }
+
+        .textarea-buttons button.recording {
+            background-color: rgba(244, 67, 54, 0.4);
+            border-color: #F44336;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
         textarea {
             width: 100%;
             background-color: #000;
@@ -158,6 +208,7 @@
             font-family: inherit;
             font-size: 14px;
             outline: none;
+            padding-right: 70px; /* Make room for buttons */
         }
 
         textarea:focus {
@@ -500,6 +551,99 @@
             background-color: #cc0000;
         }
 
+        /* Settings Modal */
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .settings-modal.active {
+            display: flex;
+        }
+
+        .settings-content {
+            background-color: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .settings-content h2 {
+            margin: 0 0 20px 0;
+            color: #1E90FF;
+            font-size: 24px;
+        }
+
+        .settings-content label {
+            display: block;
+            margin-bottom: 8px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .settings-content input[type="password"],
+        .settings-content input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            background-color: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .settings-content .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .settings-content .button-group button {
+            flex: 1;
+        }
+
+        .settings-content .save-btn {
+            background-color: #1E90FF;
+            color: #fff;
+        }
+
+        .settings-content .clear-btn {
+            background-color: #F44336;
+            color: #fff;
+        }
+
+        .settings-content .cancel-btn {
+            background-color: #333;
+            color: #fff;
+        }
+
+        .settings-content .info-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        .settings-content .info-text a {
+            color: #1E90FF;
+            text-decoration: none;
+        }
+
+        .settings-content .info-text a:hover {
+            text-decoration: underline;
+        }
+
         /* Mobile - Portrait */
         @media (max-width: 768px) and (orientation: portrait) {
             body {
@@ -732,6 +876,7 @@
         <button id="savePngBtn">📄 Save Project as PDF</button>
         <button id="saveJsonBtn">💾 Save Data (JSON)</button>
         <button id="loadFileBtn">📁 Load from File</button>
+        <button id="settingsBtn">⚙️ Settings</button>
         <input type="file" id="fileInput" accept=".json">
         <div class="shot-counter" id="shotCounter">
             <div class="stat total"><span id="totalShots">0</span> shots</div>
@@ -762,6 +907,25 @@
     <div class="fullscreen-overlay" id="fullscreenOverlay">
         <button class="fullscreen-close" id="fullscreenClose">×</button>
         <img class="fullscreen-image" id="fullscreenImage" src="" alt="Fullscreen view">
+    </div>
+
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-content">
+            <h2>Settings</h2>
+            <label for="apiKeyInput">OpenAI API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="sk-...">
+            <p class="info-text">
+                Your API key is stored locally on your device only and is never shared.
+                It's only used when you click the ✨ enhance button.
+                <br><br>
+                Don't have an API key? <a href="https://platform.openai.com/api-keys" target="_blank">Get one here</a>
+            </p>
+            <div class="button-group">
+                <button class="save-btn" id="saveApiKey">Save</button>
+                <button class="clear-btn" id="clearApiKey">Clear</button>
+                <button class="cancel-btn" id="cancelSettings">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -808,9 +972,33 @@
 
             row.innerHTML = `
                 <td class="shot-number"><input type="text" class="shot-number-input" value="${shotNum}"></td>
-                <td><textarea class="visual-action" placeholder="What do we see? What's happening?">${data?.visualAction || data?.shotDescription || ''}</textarea></td>
-                <td><textarea class="audio" placeholder="What do we hear? Dialogue? Music? Sounds?">${data?.audio || data?.dialogue || ''}</textarea></td>
-                <td><textarea class="shot-specs" placeholder="How do we film this? (e.g., CU, low angle, pan left)">${data?.shotSpecs || data?.subjects || ''}</textarea></td>
+                <td>
+                    <div class="textarea-container">
+                        <textarea class="visual-action" placeholder="What do we see? What's happening?">${data?.visualAction || data?.shotDescription || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="mic-btn" title="Voice Input">🎤</button>
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="textarea-container">
+                        <textarea class="audio" placeholder="What do we hear? Dialogue? Music? Sounds?">${data?.audio || data?.dialogue || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="mic-btn" title="Voice Input">🎤</button>
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="textarea-container">
+                        <textarea class="shot-specs" placeholder="How do we film this? (e.g., CU, low angle, pan left)">${data?.shotSpecs || data?.subjects || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="mic-btn" title="Voice Input">🎤</button>
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                        </div>
+                    </div>
+                </td>
                 <td class="reference-images-cell">
                     <div class="images-container"></div>
                 </td>
@@ -1027,6 +1215,24 @@
                     updateShotCounter();
                     triggerAutoSave();
                 }
+            });
+
+            // Setup microphone and enhance buttons
+            const micButtons = row.querySelectorAll('.mic-btn');
+            const enhanceButtons = row.querySelectorAll('.enhance-btn');
+
+            micButtons.forEach(micBtn => {
+                micBtn.addEventListener('click', () => {
+                    const textarea = micBtn.closest('.textarea-container').querySelector('textarea');
+                    startVoiceInput(textarea, micBtn);
+                });
+            });
+
+            enhanceButtons.forEach(enhanceBtn => {
+                enhanceBtn.addEventListener('click', () => {
+                    const textarea = enhanceBtn.closest('.textarea-container').querySelector('textarea');
+                    enhanceTextWithAI(textarea);
+                });
             });
 
             // Setup image area
@@ -1519,7 +1725,15 @@
         // Save as JSON
         function saveAsJSON() {
             const data = collectData();
-            const json = JSON.stringify(data, null, 2);
+
+            // Include API key in the export
+            const apiKey = localStorage.getItem('openai_api_key');
+            const exportData = {
+                shots: data,
+                apiKey: apiKey || null
+            };
+
+            const json = JSON.stringify(exportData, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const link = document.createElement('a');
             link.download = `storyboard_${Date.now()}.json`;
@@ -1532,8 +1746,23 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    const data = JSON.parse(e.target.result);
-                    loadData(data);
+                    const parsedData = JSON.parse(e.target.result);
+
+                    // Check if this is the new format with apiKey
+                    if (parsedData.shots && Array.isArray(parsedData.shots)) {
+                        // New format: { shots: [...], apiKey: "..." }
+                        loadData(parsedData.shots);
+
+                        // Restore API key if present
+                        if (parsedData.apiKey) {
+                            localStorage.setItem('openai_api_key', parsedData.apiKey);
+                            console.log('API key restored from file');
+                        }
+                    } else {
+                        // Old format: just array of shots
+                        loadData(parsedData);
+                    }
+
                     updateShotCounter();
                     triggerAutoSave();
                 } catch (error) {
@@ -1579,6 +1808,189 @@
         document.getElementById('fullscreenOverlay').addEventListener('click', (e) => {
             if (e.target.id === 'fullscreenOverlay') {
                 closeFullscreen();
+            }
+        });
+
+        // Voice input using Web Speech API
+        let recognition = null;
+
+        function startVoiceInput(textarea, micBtn) {
+            // Check if browser supports speech recognition
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                alert('Voice input is not supported in your browser. Please use Chrome, Safari, or Edge.');
+                return;
+            }
+
+            // If already recording, stop
+            if (micBtn.classList.contains('recording')) {
+                if (recognition) {
+                    recognition.stop();
+                }
+                return;
+            }
+
+            // Create new recognition instance
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            let finalTranscript = textarea.value;
+
+            recognition.onstart = () => {
+                micBtn.classList.add('recording');
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += (finalTranscript ? ' ' : '') + transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                textarea.value = finalTranscript + (interimTranscript ? ' ' + interimTranscript : '');
+                triggerAutoSave();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                micBtn.classList.remove('recording');
+
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please allow microphone access in your browser settings.');
+                }
+            };
+
+            recognition.onend = () => {
+                micBtn.classList.remove('recording');
+                textarea.value = finalTranscript;
+                triggerAutoSave();
+            };
+
+            // Start recognition
+            recognition.start();
+        }
+
+        // Enhance text with AI using OpenAI API
+        async function enhanceTextWithAI(textarea) {
+            const text = textarea.value.trim();
+
+            if (!text) {
+                alert('Please enter some text first');
+                return;
+            }
+
+            const apiKey = localStorage.getItem('openai_api_key');
+
+            if (!apiKey) {
+                alert('Please set your OpenAI API key in Settings first');
+                openSettings();
+                return;
+            }
+
+            // Show loading state
+            const originalText = text;
+            textarea.value = 'Enhancing...';
+            textarea.disabled = true;
+
+            try {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-3.5-turbo',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a helpful assistant that cleans up and clarifies text for film storyboards. Remove filler words, organize thoughts, and make the text concise and clear while keeping the exact same meaning and intent. Keep it brief and professional. Do not add any information that was not in the original text.'
+                            },
+                            {
+                                role: 'user',
+                                content: text
+                            }
+                        ],
+                        temperature: 0.3,
+                        max_tokens: 200
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const enhancedText = data.choices[0].message.content.trim();
+
+                textarea.value = enhancedText;
+                textarea.disabled = false;
+                triggerAutoSave();
+
+            } catch (error) {
+                console.error('Error enhancing text:', error);
+                textarea.value = originalText;
+                textarea.disabled = false;
+                alert('Error enhancing text. Please check your API key and try again.');
+            }
+        }
+
+        // Settings modal functions
+        function openSettings() {
+            const modal = document.getElementById('settingsModal');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            // Load existing API key from localStorage
+            const savedKey = localStorage.getItem('openai_api_key');
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+            }
+            modal.classList.add('active');
+        }
+
+        function closeSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.remove('active');
+        }
+
+        function saveApiKey() {
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const apiKey = apiKeyInput.value.trim();
+
+            if (apiKey) {
+                localStorage.setItem('openai_api_key', apiKey);
+                alert('API key saved successfully!');
+                closeSettings();
+            } else {
+                alert('Please enter an API key');
+            }
+        }
+
+        function clearApiKey() {
+            if (confirm('Are you sure you want to clear your API key?')) {
+                localStorage.removeItem('openai_api_key');
+                document.getElementById('apiKeyInput').value = '';
+                alert('API key cleared');
+            }
+        }
+
+        // Settings event listeners
+        document.getElementById('settingsBtn').addEventListener('click', openSettings);
+        document.getElementById('saveApiKey').addEventListener('click', saveApiKey);
+        document.getElementById('clearApiKey').addEventListener('click', clearApiKey);
+        document.getElementById('cancelSettings').addEventListener('click', closeSettings);
+
+        // Close settings modal when clicking outside
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'settingsModal') {
+                closeSettings();
             }
         });
 
