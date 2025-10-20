@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storyboard</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Short film storyboard tool">
+    <meta name="theme-color" content="#000000">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Storyboard">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:active {
+            opacity: 0.7;
+        }
+
+        #addShotBtn,
+        #savePngBtn,
+        #saveJsonBtn,
+        #loadFileBtn {
+            background-color: #333;
+            color: #fff;
+        }
+
+        .auto-saved {
+            color: #00C853;
+            font-size: 14px;
+            margin-left: auto;
+        }
+
+        .shot-counter {
+            color: #999;
+            font-size: 14px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .shot-counter .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .shot-counter .total {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .shot-counter .approved {
+            color: #00C853;
+        }
+
+        .shot-counter .in-progress {
+            color: #1E90FF;
+        }
+
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #333;
+        }
+
+        th {
+            background-color: #1a1a1a;
+            padding: 15px;
+            text-align: left;
+            border: 1px solid #333;
+            font-weight: 500;
+        }
+
+        td {
+            border: 1px solid #333;
+            padding: 15px;
+            vertical-align: top;
+        }
+
+        .shot-number {
+            width: 80px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .shot-number input {
+            width: 100%;
+            background-color: #000;
+            color: #fff;
+            border: none;
+            text-align: center;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            outline: none;
+        }
+
+        .shot-number input:focus {
+            background-color: #1a1a1a;
+        }
+
+        textarea {
+            width: 100%;
+            background-color: #000;
+            color: #fff;
+            border: none;
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+        }
+
+        textarea:focus {
+            background-color: #1a1a1a;
+        }
+
+        .reference-images-cell {
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .images-container {
+            display: flex;
+            gap: 15px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .images-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .images-container::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+
+        .images-container::-webkit-scrollbar-thumb {
+            background: #666;
+            border-radius: 4px;
+        }
+
+        .images-container::-webkit-scrollbar-thumb:hover {
+            background: #888;
+        }
+
+        .image-item {
+            position: relative;
+            cursor: move;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            padding: 8px;
+            background-color: #1a1a1a;
+            flex-shrink: 0;
+        }
+
+        .image-item.dragging {
+            opacity: 0.5;
+            border-color: #1E90FF;
+        }
+
+        .image-item.drag-over {
+            border-color: #00C853;
+        }
+
+        .image-preview {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 4px;
+            display: block;
+        }
+
+        .image-caption {
+            width: 150px;
+            margin-top: 8px;
+            background-color: #000;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 6px;
+            font-size: 12px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .image-caption:focus {
+            border-color: #1E90FF;
+            outline: none;
+        }
+
+        .remove-image {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background-color: #ff0000;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .add-image-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .add-image-area {
+            width: 150px;
+            height: 150px;
+            border: 2px dashed #666;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .add-image-area:hover {
+            border-color: #1E90FF;
+            background-color: #1a1a1a;
+        }
+
+        .add-image-area .plus {
+            font-size: 36px;
+            color: #666;
+        }
+
+        .add-image-area .hint {
+            font-size: 11px;
+            color: #666;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .paste-input {
+            width: 150px;
+            background-color: #1a1a1a;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .paste-input:focus {
+            border-color: #1E90FF;
+            outline: none;
+        }
+
+        .paste-input::placeholder {
+            color: #666;
+        }
+
+        .status-select {
+            width: 100%;
+            background-color: #1a1a1a;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 8px;
+            font-size: 14px;
+            border-radius: 4px;
+            font-family: inherit;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .status-select:focus {
+            border-color: #1E90FF;
+            outline: none;
+        }
+
+        .status-select option {
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+
+        .status-notes {
+            width: 100%;
+            background-color: #000;
+            color: #fff;
+            border: none;
+            resize: vertical;
+            min-height: 60px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .status-notes:focus {
+            background-color: #1a1a1a;
+        }
+
+        .actions-cell {
+            min-width: 70px;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .action-buttons button {
+            background-color: transparent;
+            color: #999;
+            font-size: 20px;
+            padding: 6px;
+            border: none;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .action-buttons button:hover {
+            color: #fff;
+            background-color: #333;
+            border-radius: 4px;
+        }
+
+        .drag-handle {
+            cursor: grab;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .drag-handle:hover {
+            color: #1E90FF;
+        }
+
+        .duplicate-row:hover {
+            color: #00C853;
+        }
+
+        .export-shot:hover {
+            color: #1E90FF;
+        }
+
+        .delete-row:hover {
+            color: #ff0000;
+        }
+
+        .lock-toggle:hover {
+            color: #FF9800;
+        }
+
+        .lock-toggle[data-locked="true"] {
+            color: #F44336;
+        }
+
+        .lock-toggle[data-locked="true"]:hover {
+            color: #ff5555;
+        }
+
+        tr.dragging {
+            opacity: 0.5;
+            background-color: #1a1a1a;
+        }
+
+        tr.drag-over {
+            border-top: 3px solid #1E90FF;
+        }
+
+        tr.locked {
+            opacity: 0.6;
+            background-color: #1a1a1a;
+        }
+
+        tr.locked textarea,
+        tr.locked input,
+        tr.locked select {
+            pointer-events: none;
+            background-color: #0a0a0a !important;
+        }
+
+        tr.locked .drag-handle,
+        tr.locked .duplicate-row,
+        tr.locked .delete-row {
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .fullscreen-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .fullscreen-overlay.active {
+            display: flex;
+        }
+
+        .fullscreen-image {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+        }
+
+        .fullscreen-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #ff0000;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .fullscreen-close:hover {
+            background-color: #cc0000;
+        }
+
+        /* Mobile - Portrait */
+        @media (max-width: 768px) and (orientation: portrait) {
+            body {
+                padding: 8px;
+            }
+
+            .header {
+                gap: 6px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .header button {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+
+            .shot-counter {
+                justify-content: flex-start;
+                gap: 10px;
+                font-size: 13px;
+            }
+
+            .auto-saved {
+                margin-left: 0;
+            }
+
+            th, td {
+                padding: 8px;
+                font-size: 12px;
+            }
+
+            .shot-number {
+                width: 50px;
+            }
+
+            textarea {
+                min-height: 80px;
+                font-size: 14px;
+            }
+
+            .reference-images-cell {
+                min-width: 250px;
+                max-width: 300px;
+            }
+
+            .image-preview,
+            .add-image-area {
+                width: 100px;
+                height: 100px;
+            }
+
+            .image-caption,
+            .paste-input {
+                width: 100px;
+                font-size: 11px;
+            }
+
+            .action-buttons button {
+                width: 40px;
+                height: 40px;
+                font-size: 22px;
+            }
+        }
+
+        /* Mobile - Landscape (Your primary use case) */
+        @media (max-width: 926px) and (orientation: landscape) {
+            body {
+                padding: 5px;
+            }
+
+            .header {
+                gap: 6px;
+                margin-bottom: 10px;
+            }
+
+            .header button {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+
+            .shot-counter {
+                gap: 8px;
+                font-size: 11px;
+            }
+
+            .auto-saved {
+                font-size: 11px;
+            }
+
+            th {
+                padding: 6px;
+                font-size: 11px;
+            }
+
+            td {
+                padding: 6px;
+                font-size: 11px;
+            }
+
+            .shot-number {
+                width: 45px;
+                min-width: 45px;
+            }
+
+            .shot-number input {
+                font-size: 11px;
+            }
+
+            textarea {
+                min-height: 50px;
+                font-size: 12px;
+                padding: 4px;
+            }
+
+            .status-select {
+                font-size: 11px;
+                padding: 4px;
+            }
+
+            .status-notes {
+                min-height: 40px;
+                font-size: 11px;
+            }
+
+            /* Optimize column widths for landscape */
+            table {
+                font-size: 11px;
+            }
+
+            th:nth-child(2), /* Visual Action */
+            th:nth-child(3), /* Audio */
+            th:nth-child(4) { /* Shot Specs */
+                width: 20%;
+                min-width: 150px;
+            }
+
+            .reference-images-cell {
+                min-width: 200px;
+                max-width: 400px;
+            }
+
+            .image-preview,
+            .add-image-area {
+                width: 90px;
+                height: 90px;
+            }
+
+            .image-caption,
+            .paste-input {
+                width: 90px;
+                font-size: 10px;
+            }
+
+            .action-buttons {
+                gap: 4px;
+            }
+
+            .action-buttons button {
+                width: 32px;
+                height: 32px;
+                font-size: 18px;
+                padding: 4px;
+            }
+
+            .actions-cell {
+                min-width: 50px;
+            }
+        }
+
+        /* Tablet and smaller desktop */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .reference-images-cell {
+                min-width: 350px;
+                max-width: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button id="addShotBtn">+ Add Shot</button>
+        <button id="savePngBtn">💾 Save as PNG</button>
+        <button id="saveJsonBtn">💾 Save Data (JSON)</button>
+        <button id="loadFileBtn">📁 Load from File</button>
+        <input type="file" id="fileInput" accept=".json">
+        <div class="shot-counter" id="shotCounter">
+            <div class="stat total"><span id="totalShots">0</span> shots</div>
+            <div class="stat approved"><span id="approvedShots">0</span> approved</div>
+            <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
+        </div>
+        <div class="auto-saved" id="autoSavedIndicator">Auto-saved ✓</div>
+    </div>
+
+    <div class="table-container">
+        <table id="storyboardTable">
+            <thead>
+                <tr>
+                    <th>Shot #</th>
+                    <th>Visual Action</th>
+                    <th>Audio</th>
+                    <th>Shot Specs</th>
+                    <th>Reference Images</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="fullscreen-overlay" id="fullscreenOverlay">
+        <button class="fullscreen-close" id="fullscreenClose">×</button>
+        <img class="fullscreen-image" id="fullscreenImage" src="" alt="Fullscreen view">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+        let autoSaveTimeout;
+
+        // Initialize with 5 rows
+        function init() {
+            const savedData = localStorage.getItem('storyboardData');
+            if (savedData) {
+                loadData(JSON.parse(savedData));
+            } else {
+                for (let i = 0; i < 5; i++) {
+                    addRow();
+                }
+            }
+            updateShotCounter();
+        }
+
+        // Get next shot number
+        function getNextShotNumber() {
+            const rows = document.querySelectorAll('#tableBody tr');
+            if (rows.length === 0) {
+                return '001';
+            }
+
+            const lastRow = rows[rows.length - 1];
+            const lastShotInput = lastRow.querySelector('.shot-number-input');
+            if (lastShotInput) {
+                const lastNum = parseInt(lastShotInput.value) || rows.length;
+                return String(lastNum + 1).padStart(3, '0');
+            }
+
+            return String(rows.length + 1).padStart(3, '0');
+        }
+
+        // Add a new row
+        function addRow(data = null) {
+            const tbody = document.getElementById('tableBody');
+            const row = document.createElement('tr');
+
+            const shotNum = data?.shotNumber || getNextShotNumber();
+
+            row.innerHTML = `
+                <td class="shot-number"><input type="text" class="shot-number-input" value="${shotNum}"></td>
+                <td><textarea class="visual-action" placeholder="What do we see? What's happening?">${data?.visualAction || data?.shotDescription || ''}</textarea></td>
+                <td><textarea class="audio" placeholder="What do we hear? Dialogue? Music? Sounds?">${data?.audio || data?.dialogue || ''}</textarea></td>
+                <td><textarea class="shot-specs" placeholder="How do we film this? (e.g., CU, low angle, pan left)">${data?.shotSpecs || data?.subjects || ''}</textarea></td>
+                <td class="reference-images-cell">
+                    <div class="images-container"></div>
+                </td>
+                <td>
+                    <select class="status-select">
+                        <option value="planned" ${(data?.status || 'planned') === 'planned' ? 'selected' : ''}>Planned</option>
+                        <option value="in-progress" ${data?.status === 'in-progress' ? 'selected' : ''}>In Progress</option>
+                        <option value="shot" ${data?.status === 'shot' ? 'selected' : ''}>Shot</option>
+                        <option value="approved" ${data?.status === 'approved' ? 'selected' : ''}>Approved</option>
+                        <option value="needs-reshoot" ${data?.status === 'needs-reshoot' ? 'selected' : ''}>Needs Reshoot</option>
+                    </select>
+                    <textarea class="status-notes" placeholder="Add notes...">${data?.notes || ''}</textarea>
+                </td>
+                <td class="actions-cell">
+                    <div class="action-buttons">
+                        <button class="drag-handle" title="Drag to Reorder">☰</button>
+                        <button class="duplicate-row" title="Duplicate Shot">⧉</button>
+                        <button class="lock-toggle" title="${data?.locked ? 'Unlock Shot' : 'Lock Shot'}" data-locked="${data?.locked ? 'true' : 'false'}">${data?.locked ? '🔒' : '🔓'}</button>
+                        <button class="export-shot" title="Export Shot as PNG">⎙</button>
+                        <button class="delete-row" title="Delete Shot">×</button>
+                    </div>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+
+            // Apply locked class if needed
+            if (data?.locked) {
+                row.classList.add('locked');
+            }
+
+            // Add event listeners for text areas, shot number input, status select, and status notes
+            row.querySelectorAll('textarea, .shot-number-input, .status-select').forEach(input => {
+                input.addEventListener('input', triggerAutoSave);
+                if (input.tagName === 'SELECT') {
+                    input.addEventListener('change', () => {
+                        triggerAutoSave();
+                        updateShotCounter();
+                    });
+                }
+            });
+
+            // Drag and drop functionality
+            const dragHandle = row.querySelector('.drag-handle');
+
+            dragHandle.addEventListener('mousedown', () => {
+                row.setAttribute('draggable', 'true');
+            });
+
+            dragHandle.addEventListener('mouseup', () => {
+                row.setAttribute('draggable', 'false');
+            });
+
+            row.addEventListener('dragstart', (e) => {
+                if (row.classList.contains('locked')) {
+                    e.preventDefault();
+                    return;
+                }
+                row.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            row.addEventListener('dragend', () => {
+                row.classList.remove('dragging');
+                row.setAttribute('draggable', 'false');
+                document.querySelectorAll('#tableBody tr').forEach(r => {
+                    r.classList.remove('drag-over');
+                });
+                renumberShots();
+                triggerAutoSave();
+            });
+
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const draggingRow = document.querySelector('#tableBody tr.dragging');
+                if (draggingRow && draggingRow !== row) {
+                    row.classList.add('drag-over');
+                }
+            });
+
+            row.addEventListener('dragleave', () => {
+                row.classList.remove('drag-over');
+            });
+
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const draggingRow = document.querySelector('#tableBody tr.dragging');
+                if (draggingRow && draggingRow !== row) {
+                    const allRows = [...document.querySelectorAll('#tableBody tr')];
+                    const draggingIndex = allRows.indexOf(draggingRow);
+                    const targetIndex = allRows.indexOf(row);
+
+                    if (draggingIndex < targetIndex) {
+                        row.after(draggingRow);
+                    } else {
+                        row.before(draggingRow);
+                    }
+                }
+                row.classList.remove('drag-over');
+            });
+
+            // Lock/unlock functionality
+            const lockToggle = row.querySelector('.lock-toggle');
+            lockToggle.addEventListener('click', () => {
+                const isLocked = lockToggle.getAttribute('data-locked') === 'true';
+
+                if (isLocked) {
+                    lockToggle.setAttribute('data-locked', 'false');
+                    lockToggle.textContent = '🔓';
+                    lockToggle.title = 'Lock Shot';
+                    row.classList.remove('locked');
+                } else {
+                    lockToggle.setAttribute('data-locked', 'true');
+                    lockToggle.textContent = '🔒';
+                    lockToggle.title = 'Unlock Shot';
+                    row.classList.add('locked');
+                }
+                triggerAutoSave();
+            });
+
+            // Duplicate row functionality
+            row.querySelector('.duplicate-row').addEventListener('click', () => {
+                const rowData = getRowData(row);
+                const newRow = addRow(rowData);
+                row.after(newRow);
+                renumberShots();
+                updateShotCounter();
+                triggerAutoSave();
+            });
+
+            // Export shot functionality
+            row.querySelector('.export-shot').addEventListener('click', () => {
+                exportSingleShot(row);
+            });
+
+            // Delete row functionality
+            row.querySelector('.delete-row').addEventListener('click', () => {
+                if (confirm('Are you sure you want to delete this shot?')) {
+                    row.remove();
+                    renumberShots();
+                    updateShotCounter();
+                    triggerAutoSave();
+                }
+            });
+
+            // Setup image area
+            const imagesContainer = row.querySelector('.images-container');
+            setupImageArea(imagesContainer, data?.images || []);
+
+            return row;
+        }
+
+        // Renumber shots after deletion
+        function renumberShots() {
+            const rows = document.querySelectorAll('#tableBody tr');
+            rows.forEach((row, index) => {
+                const shotNumberInput = row.querySelector('.shot-number-input');
+                if (shotNumberInput) {
+                    shotNumberInput.value = String(index + 1).padStart(3, '0');
+                }
+            });
+        }
+
+        // Get data from a single row
+        function getRowData(row) {
+            const shotNumber = row.querySelector('.shot-number-input').value;
+            const visualAction = row.querySelector('.visual-action').value;
+            const audio = row.querySelector('.audio').value;
+            const shotSpecs = row.querySelector('.shot-specs').value;
+            const status = row.querySelector('.status-select').value;
+            const notes = row.querySelector('.status-notes').value;
+            const locked = row.querySelector('.lock-toggle').getAttribute('data-locked') === 'true';
+
+            const images = [];
+            row.querySelectorAll('.image-item').forEach(imageItem => {
+                const img = imageItem.querySelector('.image-preview');
+                const caption = imageItem.querySelector('.image-caption').value;
+                images.push({
+                    src: img.src,
+                    caption: caption
+                });
+            });
+
+            return {
+                shotNumber,
+                visualAction,
+                audio,
+                shotSpecs,
+                status,
+                notes,
+                locked,
+                images
+            };
+        }
+
+        // Update shot counter
+        function updateShotCounter() {
+            const rows = document.querySelectorAll('#tableBody tr');
+            const total = rows.length;
+            let approved = 0;
+            let inProgress = 0;
+
+            rows.forEach(row => {
+                const status = row.querySelector('.status-select').value;
+                if (status === 'approved') {
+                    approved++;
+                } else if (status === 'in-progress' || status === 'shot' || status === 'needs-reshoot') {
+                    inProgress++;
+                }
+            });
+
+            document.getElementById('totalShots').textContent = total;
+            document.getElementById('approvedShots').textContent = approved;
+            document.getElementById('inProgressShots').textContent = inProgress;
+        }
+
+        // Setup image area with paste and click functionality
+        function setupImageArea(container, existingImages = []) {
+            // Create add image button first
+            updateAddButton(container);
+
+            // Add existing images
+            existingImages.forEach(imageData => {
+                addImageToContainer(container, imageData.src, imageData.caption);
+            });
+        }
+
+        // Add image to container
+        function addImageToContainer(container, imageSrc, caption = '') {
+            const imageItem = document.createElement('div');
+            imageItem.className = 'image-item';
+            imageItem.draggable = true;
+
+            imageItem.innerHTML = `
+                <button class="remove-image">×</button>
+                <img src="${imageSrc}" class="image-preview">
+                <input type="text" class="image-caption" placeholder="Add caption..." value="${caption}">
+            `;
+
+            // Insert before the add-image-wrapper
+            const wrapper = container.querySelector('.add-image-wrapper');
+            if (wrapper) {
+                container.insertBefore(imageItem, wrapper);
+            } else {
+                container.appendChild(imageItem);
+            }
+
+            // Add drag and drop functionality
+            setupDragAndDrop(imageItem, container);
+
+            // Remove image functionality
+            imageItem.querySelector('.remove-image').addEventListener('click', () => {
+                imageItem.remove();
+                triggerAutoSave();
+            });
+
+            // Caption input
+            imageItem.querySelector('.image-caption').addEventListener('input', triggerAutoSave);
+
+            // Double-click to fullscreen
+            const imgElement = imageItem.querySelector('.image-preview');
+            imgElement.addEventListener('dblclick', () => {
+                showFullscreen(imageSrc);
+            });
+        }
+
+        // Show image in fullscreen
+        function showFullscreen(imageSrc) {
+            const overlay = document.getElementById('fullscreenOverlay');
+            const fullscreenImg = document.getElementById('fullscreenImage');
+            fullscreenImg.src = imageSrc;
+            overlay.classList.add('active');
+        }
+
+        // Close fullscreen
+        function closeFullscreen() {
+            const overlay = document.getElementById('fullscreenOverlay');
+            overlay.classList.remove('active');
+        }
+
+        // Update add button
+        function updateAddButton(container) {
+            let wrapper = container.querySelector('.add-image-wrapper');
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.className = 'add-image-wrapper';
+
+                // Create upload button
+                const addButton = document.createElement('div');
+                addButton.className = 'add-image-area';
+                addButton.innerHTML = `
+                    <div class="plus">+</div>
+                    <div class="hint">Upload Image</div>
+                `;
+
+                addButton.addEventListener('click', () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.multiple = true;
+                    input.onchange = (e) => {
+                        const files = Array.from(e.target.files);
+                        files.forEach(file => {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                                addImageToContainer(container, event.target.result);
+                                triggerAutoSave();
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    };
+                    input.click();
+                });
+
+                // Create paste input
+                const pasteInput = document.createElement('input');
+                pasteInput.type = 'text';
+                pasteInput.className = 'paste-input';
+                pasteInput.placeholder = 'Paste image here...';
+
+                pasteInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const items = e.clipboardData.items;
+                    for (let item of items) {
+                        if (item.type.indexOf('image') !== -1) {
+                            const file = item.getAsFile();
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                                addImageToContainer(container, event.target.result);
+                                pasteInput.value = '';
+                                triggerAutoSave();
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    }
+                });
+
+                wrapper.appendChild(addButton);
+                wrapper.appendChild(pasteInput);
+                container.appendChild(wrapper);
+            }
+        }
+
+        // Drag and drop functionality
+        function setupDragAndDrop(item, container) {
+            item.addEventListener('dragstart', (e) => {
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                container.querySelectorAll('.image-item').forEach(i => {
+                    i.classList.remove('drag-over');
+                });
+                triggerAutoSave();
+            });
+
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const draggingItem = container.querySelector('.dragging');
+                if (draggingItem && draggingItem !== item) {
+                    item.classList.add('drag-over');
+                }
+            });
+
+            item.addEventListener('dragleave', () => {
+                item.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const draggingItem = container.querySelector('.dragging');
+                if (draggingItem && draggingItem !== item) {
+                    const allItems = [...container.querySelectorAll('.image-item')];
+                    const draggingIndex = allItems.indexOf(draggingItem);
+                    const targetIndex = allItems.indexOf(item);
+
+                    if (draggingIndex < targetIndex) {
+                        item.after(draggingItem);
+                    } else {
+                        item.before(draggingItem);
+                    }
+                }
+                item.classList.remove('drag-over');
+            });
+        }
+
+        // Auto-save functionality
+        function triggerAutoSave() {
+            clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => {
+                saveToLocalStorage();
+                showAutoSavedIndicator();
+            }, 500);
+        }
+
+        function saveToLocalStorage() {
+            const data = collectData();
+            localStorage.setItem('storyboardData', JSON.stringify(data));
+        }
+
+        function showAutoSavedIndicator() {
+            const indicator = document.getElementById('autoSavedIndicator');
+            indicator.style.opacity = '1';
+            setTimeout(() => {
+                indicator.style.opacity = '0.5';
+            }, 1000);
+        }
+
+        // Collect all data from the table
+        function collectData() {
+            const rows = document.querySelectorAll('#tableBody tr');
+            const data = [];
+
+            rows.forEach(row => {
+                data.push(getRowData(row));
+            });
+
+            return data;
+        }
+
+        // Load data into the table
+        function loadData(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            data.forEach(rowData => {
+                addRow(rowData);
+            });
+        }
+
+        // Save as PNG
+        async function saveAsPNG() {
+            const table = document.getElementById('storyboardTable');
+            const canvas = await html2canvas(table, {
+                backgroundColor: '#000',
+                scale: 2
+            });
+
+            const link = document.createElement('a');
+            link.download = `storyboard_${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        // Export single shot as PNG
+        async function exportSingleShot(row) {
+            // Create a temporary container for the shot card
+            const container = document.createElement('div');
+            container.style.position = 'fixed';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.backgroundColor = '#000';
+            container.style.color = '#fff';
+            container.style.padding = '30px';
+            container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif';
+            container.style.width = '800px';
+            document.body.appendChild(container);
+
+            // Get row data
+            const rowData = getRowData(row);
+
+            // Create shot card HTML
+            container.innerHTML = `
+                <div style="background-color: #1a1a1a; border: 2px solid #333; border-radius: 8px; padding: 25px;">
+                    <h1 style="margin: 0 0 25px 0; font-size: 32px; border-bottom: 2px solid #1E90FF; padding-bottom: 15px;">
+                        Shot ${rowData.shotNumber}
+                    </h1>
+
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">STATUS</h3>
+                        <p style="margin: 0; font-size: 16px; text-transform: capitalize;">${rowData.status.replace('-', ' ')}</p>
+                    </div>
+
+                    ${rowData.notes ? `
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">NOTES</h3>
+                            <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.notes}</p>
+                        </div>
+                    ` : ''}
+
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">VISUAL ACTION</h3>
+                        <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.visualAction || 'N/A'}</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">AUDIO</h3>
+                        <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.audio || 'N/A'}</p>
+                    </div>
+
+                    <div style="margin-bottom: ${rowData.images.length > 0 ? '20px' : '0'};">
+                        <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">SHOT SPECS</h3>
+                        <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.shotSpecs || 'N/A'}</p>
+                    </div>
+
+                    ${rowData.images.length > 0 ? `
+                        <div>
+                            <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 16px;">REFERENCE IMAGES</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+                                ${rowData.images.map(img => `
+                                    <div style="background-color: #000; border: 1px solid #333; border-radius: 6px; padding: 10px;">
+                                        <img src="${img.src}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 4px; display: block; margin-bottom: 10px;">
+                                        ${img.caption ? `<p style="margin: 0; font-size: 13px; color: #ccc; text-align: center;">${img.caption}</p>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Use html2canvas to convert to PNG
+            const canvas = await html2canvas(container, {
+                backgroundColor: '#000',
+                scale: 2,
+                logging: false,
+                useCORS: true,
+                allowTaint: true
+            });
+
+            // Download the image
+            const link = document.createElement('a');
+            link.download = `shot_${rowData.shotNumber}_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            // Clean up
+            document.body.removeChild(container);
+        }
+
+        // Save as JSON
+        function saveAsJSON() {
+            const data = collectData();
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = `storyboard_${Date.now()}.json`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+        }
+
+        // Load from file
+        function loadFromFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    loadData(data);
+                    updateShotCounter();
+                    triggerAutoSave();
+                } catch (error) {
+                    alert('Error loading file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Event listeners
+        document.getElementById('addShotBtn').addEventListener('click', () => {
+            addRow();
+            updateShotCounter();
+            triggerAutoSave();
+        });
+
+        document.getElementById('savePngBtn').addEventListener('click', saveAsPNG);
+        document.getElementById('saveJsonBtn').addEventListener('click', saveAsJSON);
+
+        document.getElementById('loadFileBtn').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                loadFromFile(file);
+            }
+        });
+
+        // Fullscreen overlay event listeners
+        document.getElementById('fullscreenClose').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeFullscreen();
+        });
+
+        document.getElementById('fullscreenOverlay').addEventListener('click', (e) => {
+            if (e.target.id === 'fullscreenOverlay') {
+                closeFullscreen();
+            }
+        });
+
+        // Prevent closing when clicking on the image itself
+        document.getElementById('fullscreenImage').addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Initialize
+        init();
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(registration => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker registration failed'));
+            });
+        }
+    </script>
+</body>
+</html>
