@@ -125,6 +125,14 @@
             border: 1px solid #333;
             padding: 15px;
             vertical-align: top;
+            height: 100%;
+        }
+
+        /* Text input cells need special handling for flexbox */
+        td:nth-child(2),
+        td:nth-child(3),
+        td:nth-child(4) {
+            padding: 8px;
         }
 
         .shot-number {
@@ -151,18 +159,18 @@
 
         /* Textarea container with buttons */
         .textarea-container {
-            position: relative;
+            display: flex;
+            flex-direction: column;
             width: 100%;
-            min-height: 80px;
+            height: 100%;
         }
 
         .textarea-buttons {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
             display: flex;
             gap: 3px;
-            z-index: 10;
+            justify-content: flex-end;
+            padding: 4px;
+            margin-top: auto;
         }
 
         .textarea-buttons button {
@@ -219,8 +227,8 @@
             font-family: inherit;
             font-size: 14px;
             outline: none;
-            padding-right: 8px;
-            padding-bottom: 28px; /* Make room for buttons at bottom */
+            padding: 8px;
+            flex: 1;
         }
 
         textarea:focus {
@@ -697,7 +705,6 @@
                 font-size: 14px;
                 line-height: 1.4;
                 padding: 6px;
-                padding-bottom: 50px; /* More room for stacked buttons */
             }
 
             textarea::placeholder {
@@ -707,8 +714,8 @@
 
             /* Stack mic and enhance buttons vertically in portrait */
             .textarea-buttons {
-                flex-direction: column;
-                gap: 2px;
+                flex-direction: row;
+                gap: 4px;
             }
 
             .textarea-buttons button {
