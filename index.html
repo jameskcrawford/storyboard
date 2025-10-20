@@ -729,7 +729,7 @@
 <body>
     <div class="header">
         <button id="addShotBtn">+ Add Shot</button>
-        <button id="savePngBtn">💾 Save as PNG</button>
+        <button id="savePngBtn">📄 Save Project as PDF</button>
         <button id="saveJsonBtn">💾 Save Data (JSON)</button>
         <button id="loadFileBtn">📁 Load from File</button>
         <input type="file" id="fileInput" accept=".json">
@@ -765,6 +765,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
         let autoSaveTimeout;
 
@@ -1315,18 +1316,118 @@
             });
         }
 
-        // Save as PNG
+        // Save project as PDF with one shot per page
         async function saveAsPNG() {
-            const table = document.getElementById('storyboardTable');
-            const canvas = await html2canvas(table, {
-                backgroundColor: '#000',
-                scale: 2
+            const rows = document.querySelectorAll('#tableBody tr');
+
+            if (rows.length === 0) {
+                alert('No shots to export!');
+                return;
+            }
+
+            // Initialize jsPDF
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
             });
 
-            const link = document.createElement('a');
-            link.download = `storyboard_${Date.now()}.png`;
-            link.href = canvas.toDataURL();
-            link.click();
+            let isFirstPage = true;
+
+            for (const row of rows) {
+                if (!isFirstPage) {
+                    pdf.addPage();
+                }
+                isFirstPage = false;
+
+                // Create a temporary container for the shot card
+                const container = document.createElement('div');
+                container.style.position = 'fixed';
+                container.style.left = '-9999px';
+                container.style.top = '0';
+                container.style.backgroundColor = '#000';
+                container.style.color = '#fff';
+                container.style.padding = '30px';
+                container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif';
+                container.style.width = '800px';
+                document.body.appendChild(container);
+
+                // Get row data
+                const rowData = getRowData(row);
+
+                // Create shot card HTML (same format as individual export)
+                container.innerHTML = `
+                    <div style="background-color: #1a1a1a; border: 2px solid #333; border-radius: 8px; padding: 25px;">
+                        <h1 style="margin: 0 0 25px 0; font-size: 32px; border-bottom: 2px solid #1E90FF; padding-bottom: 15px;">
+                            Shot ${rowData.shotNumber}
+                        </h1>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">STATUS</h3>
+                            <p style="margin: 0; font-size: 16px; text-transform: capitalize;">${rowData.status.replace('-', ' ')}</p>
+                        </div>
+
+                        ${rowData.notes ? `
+                            <div style="margin-bottom: 20px;">
+                                <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">NOTES</h3>
+                                <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.notes}</p>
+                            </div>
+                        ` : ''}
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">VISUAL ACTION</h3>
+                            <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.visualAction || 'N/A'}</p>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">AUDIO</h3>
+                            <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.audio || 'N/A'}</p>
+                        </div>
+
+                        <div style="margin-bottom: ${rowData.images.length > 0 ? '20px' : '0'};">
+                            <h3 style="margin: 0 0 8px 0; color: #1E90FF; font-size: 16px;">SHOT SPECS</h3>
+                            <p style="margin: 0; font-size: 16px; white-space: pre-wrap;">${rowData.shotSpecs || 'N/A'}</p>
+                        </div>
+
+                        ${rowData.images.length > 0 ? `
+                            <div>
+                                <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 16px;">REFERENCE IMAGES</h3>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+                                    ${rowData.images.map(img => `
+                                        <div style="background-color: #000; border: 1px solid #333; border-radius: 6px; padding: 10px;">
+                                            <img src="${img.src}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 4px; display: block; margin-bottom: 10px;">
+                                            ${img.caption ? `<p style="margin: 0; font-size: 13px; color: #ccc; text-align: center;">${img.caption}</p>` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                // Use html2canvas to convert to canvas
+                const canvas = await html2canvas(container, {
+                    backgroundColor: '#000',
+                    scale: 2,
+                    logging: false,
+                    useCORS: true,
+                    allowTaint: true
+                });
+
+                // Add canvas as image to PDF
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = 210; // A4 width in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+                // Clean up
+                document.body.removeChild(container);
+            }
+
+            // Download the PDF
+            pdf.save(`storyboard_${Date.now()}.pdf`);
         }
 
         // Export single shot as PNG
