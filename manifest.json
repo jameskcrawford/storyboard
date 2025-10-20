@@ -2,7 +2,7 @@
   "name": "Storyboard",
   "short_name": "Storyboard",
   "description": "Short film storyboard tool",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
