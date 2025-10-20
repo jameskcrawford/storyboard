@@ -678,11 +678,6 @@
             text-decoration: underline;
         }
 
-        /* Hide Actions section by default (show only in portrait mode) */
-        .settings-actions {
-            display: none;
-        }
-
         /* Mobile - Portrait */
         @media (max-width: 768px) and (orientation: portrait) {
             body {
@@ -700,16 +695,9 @@
                 font-size: 14px;
             }
 
-            /* Hide PDF, JSON, and Load buttons in portrait mode */
-            #savePngBtn,
-            #saveJsonBtn,
-            #loadFileBtn {
+            /* Hide PDF button in portrait mode (available in settings) */
+            #savePngBtn {
                 display: none;
-            }
-
-            /* Show Actions section in Settings modal in portrait mode */
-            .settings-actions {
-                display: block;
             }
 
             .shot-counter {
@@ -962,9 +950,11 @@
 <body>
     <div class="header">
         <button id="addShotBtn">+ Add Shot</button>
+        <select id="projectSelector" style="padding: 10px; background-color: #333; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">
+            <option value="">Select Project...</option>
+        </select>
+        <button id="newProjectBtn">📁 New Project</button>
         <button id="savePngBtn">📄 Save Project as PDF</button>
-        <button id="saveJsonBtn">💾 Save Data (JSON)</button>
-        <button id="loadFileBtn">📁 Load from File</button>
         <button id="settingsBtn">⚙️ Settings</button>
         <input type="file" id="fileInput" accept=".json">
         <div class="shot-counter" id="shotCounter">
@@ -972,7 +962,7 @@
             <div class="stat approved"><span id="approvedShots">0</span> approved</div>
             <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
         </div>
-        <div class="auto-saved" id="autoSavedIndicator">Auto-saved ✓</div>
+        <div class="auto-saved" id="autoSavedIndicator">Cloud saved ✓</div>
     </div>
 
     <div class="table-container">
@@ -1018,17 +1008,24 @@
                 <br><br>
                 Don't have an API key? <a href="https://platform.openai.com/api-keys" target="_blank">Get one here</a>
             </p>
+
+            <!-- R2 Storage Section -->
+            <label for="r2ConfigToggle" style="margin-top: 20px;">Video Storage (Cloudflare R2)</label>
+            <p class="info-text" style="margin-top: 0;">
+                R2 credentials are pre-configured for video uploads.
+            </p>
+
             <div class="button-group">
                 <button class="save-btn" id="saveSettings">Save</button>
                 <button class="clear-btn" id="clearApiKey">Clear API Key</button>
             </div>
 
-            <!-- Action Buttons (visible in portrait mode) -->
-            <div class="settings-actions" id="settingsActions">
-                <h3 style="margin: 25px 0 15px 0; color: #1E90FF; font-size: 18px;">Actions</h3>
+            <!-- Action Buttons -->
+            <div class="settings-actions" style="display: block;">
+                <h3 style="margin: 25px 0 15px 0; color: #1E90FF; font-size: 18px;">Project Actions</h3>
                 <div class="button-group" style="flex-direction: column;">
                     <button id="modalSavePdf" style="background-color: #333; color: #fff;">📄 Save Project as PDF</button>
-                    <button id="modalSaveJson" style="background-color: #333; color: #fff;">💾 Save Data (JSON)</button>
+                    <button id="modalDownloadBackup" style="background-color: #333; color: #fff;">💾 Download Backup</button>
                     <button id="modalLoadFile" style="background-color: #333; color: #fff;">📁 Load from File</button>
                 </div>
             </div>
@@ -1044,16 +1041,274 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
         let autoSaveTimeout;
+        let currentProjectId = null;
+
+        // R2 Configuration
+        const R2_CONFIG = {
+            accountId: 'cfddc259c7ddc0377bbbbea16390edaa',
+            bucketName: 'storyboard-videos',
+            accessKeyId: '08a6c5a94bc1b3b4ec16cabf48ffb63d',
+            secretAccessKey: 'd94c8151d8e4127d4db8a18e44c5b9b4559bb6c3a760bbaf345887023f3e2241',
+            endpoint: `https://cfddc259c7ddc0377bbbbea16390edaa.r2.cloudflarestorage.com`,
+            publicUrl: `https://pub-3669964d34ee4753bf5ef4fd2260be44.r2.dev`
+        };
+
+        // Save project to R2 cloud
+        async function saveProjectToCloud(projectName, projectData) {
+            try {
+                const projectId = projectName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
+                const fileName = `projects/${projectId}.json`;
+                const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/${fileName}`;
+
+                const projectFile = {
+                    id: projectId,
+                    name: projectName,
+                    lastModified: new Date().toISOString(),
+                    data: projectData
+                };
+
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(projectFile)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to save project: ${response.status}`);
+                }
+
+                // Update project list
+                await updateProjectList(projectId, projectName);
+
+                console.log('Project saved to cloud:', projectName);
+                return projectId;
+
+            } catch (error) {
+                console.error('Error saving project to cloud:', error);
+                // Fallback to localStorage
+                saveToLocalStorage();
+                throw error;
+            }
+        }
+
+        // Load project from R2 cloud
+        async function loadProjectFromCloud(projectId) {
+            try {
+                const fileName = `projects/${projectId}.json`;
+                const url = `${R2_CONFIG.publicUrl}/${fileName}`;
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load project: ${response.status}`);
+                }
+
+                const projectFile = await response.json();
+
+                currentProjectId = projectId;
+                localStorage.setItem('currentProjectId', projectId);
+
+                // Update project name
+                if (projectFile.name) {
+                    updateProjectName(projectFile.name);
+                    localStorage.setItem('project_name', projectFile.name);
+                }
+
+                // Load the data
+                loadData(projectFile.data);
+                updateShotCounter();
+
+                console.log('Project loaded from cloud:', projectFile.name);
+
+            } catch (error) {
+                console.error('Error loading project from cloud:', error);
+                alert('Failed to load project: ' + error.message);
+            }
+        }
+
+        // Update project list (stored as index in R2)
+        async function updateProjectList(projectId, projectName) {
+            try {
+                // Fetch existing project list
+                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
+                let projectList = {};
+
+                try {
+                    const response = await fetch(listUrl);
+                    if (response.ok) {
+                        projectList = await response.json();
+                    }
+                } catch (e) {
+                    // First time, no index exists yet
+                }
+
+                // Add/update project in list
+                projectList[projectId] = {
+                    name: projectName,
+                    lastModified: new Date().toISOString()
+                };
+
+                // Save updated list
+                const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/projects/index.json`;
+                await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(projectList)
+                });
+
+            } catch (error) {
+                console.error('Error updating project list:', error);
+            }
+        }
+
+        // Load project list from R2
+        async function loadProjectList() {
+            try {
+                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
+                const response = await fetch(listUrl);
+
+                if (!response.ok) {
+                    return {};
+                }
+
+                const projectList = await response.json();
+
+                // Update selector
+                const selector = document.getElementById('projectSelector');
+                selector.innerHTML = '<option value="">Select Project...</option>';
+
+                for (const [id, info] of Object.entries(projectList)) {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = `${info.name} (${new Date(info.lastModified).toLocaleDateString()})`;
+                    selector.appendChild(option);
+                }
+
+                return projectList;
+
+            } catch (error) {
+                console.error('Error loading project list:', error);
+                return {};
+            }
+        }
+
+        // Upload video to R2
+        async function uploadVideoToR2(file, container) {
+            try {
+                // Ensure we have a project
+                if (!currentProjectId) {
+                    alert('Please create or select a project first');
+                    return;
+                }
+
+                // Generate unique filename with project folder
+                const timestamp = Date.now();
+                const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                const fileName = `videos/${currentProjectId}/${timestamp}_${sanitizedFileName}`;
+                const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/${fileName}`;
+
+                // Show upload progress
+                const uploadingDiv = document.createElement('div');
+                uploadingDiv.className = 'image-item';
+                uploadingDiv.innerHTML = `
+                    <div style="width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; background: #1a1a1a; border-radius: 4px;">
+                        <p style="color: #fff; font-size: 12px;">Uploading video...</p>
+                    </div>
+                `;
+                const wrapper = container.querySelector('.add-image-wrapper');
+                if (wrapper) {
+                    container.insertBefore(uploadingDiv, wrapper);
+                }
+
+                // Create AWS Signature V4
+                const date = new Date();
+                const dateStamp = date.toISOString().split('T')[0].replace(/-/g, '');
+                const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+
+                // Read file as ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+
+                // Create headers
+                const headers = {
+                    'Host': `${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
+                    'x-amz-date': amzDate,
+                    'x-amz-content-sha256': await sha256(arrayBuffer),
+                    'Content-Type': file.type
+                };
+
+                // Upload to R2
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: headers,
+                    body: file
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+                }
+
+                // Remove uploading indicator
+                uploadingDiv.remove();
+
+                // Add video to container with public URL
+                const publicUrl = `${R2_CONFIG.publicUrl}/${fileName}`;
+                addImageToContainer(container, publicUrl, '', 'video');
+                triggerAutoSave();
+
+                console.log('Video uploaded successfully:', publicUrl);
+
+            } catch (error) {
+                console.error('Error uploading video:', error);
+                alert('Failed to upload video: ' + error.message);
+            }
+        }
+
+        // Simple SHA256 hash function
+        async function sha256(data) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
 
         // Initialize with 5 rows
-        function init() {
-            // Load project name
+        async function init() {
+            // Load project list
+            await loadProjectList();
+
+            // Check if we have a current project
+            const savedProjectId = localStorage.getItem('currentProjectId');
+
+            if (savedProjectId) {
+                // Load last project from cloud
+                currentProjectId = savedProjectId;
+                try {
+                    await loadProjectFromCloud(savedProjectId);
+
+                    // Select in dropdown
+                    const selector = document.getElementById('projectSelector');
+                    selector.value = savedProjectId;
+                } catch (error) {
+                    console.error('Failed to load last project:', error);
+                    // Fall back to localStorage
+                    loadFromLocalStorage();
+                }
+            } else {
+                // No project yet, load from localStorage if available
+                loadFromLocalStorage();
+            }
+        }
+
+        // Load from localStorage (fallback)
+        function loadFromLocalStorage() {
             const savedProjectName = localStorage.getItem('project_name');
             if (savedProjectName) {
                 updateProjectName(savedProjectName);
             }
 
-            // Load storyboard data
             const savedData = localStorage.getItem('storyboardData');
             if (savedData) {
                 loadData(JSON.parse(savedData));
@@ -1392,11 +1647,13 @@
 
             const images = [];
             row.querySelectorAll('.image-item').forEach(imageItem => {
-                const img = imageItem.querySelector('.image-preview');
+                const media = imageItem.querySelector('.image-preview');
                 const caption = imageItem.querySelector('.image-caption').value;
+                const mediaType = imageItem.dataset.mediaType || 'image';
                 images.push({
-                    src: img.src,
-                    caption: caption
+                    src: media.src,
+                    caption: caption,
+                    type: mediaType
                 });
             });
 
@@ -1438,21 +1695,27 @@
             // Create add image button first
             updateAddButton(container);
 
-            // Add existing images
+            // Add existing images/videos
             existingImages.forEach(imageData => {
-                addImageToContainer(container, imageData.src, imageData.caption);
+                const mediaType = imageData.type || 'image';
+                addImageToContainer(container, imageData.src, imageData.caption, mediaType);
             });
         }
 
         // Add image to container
-        function addImageToContainer(container, imageSrc, caption = '') {
+        function addImageToContainer(container, mediaSrc, caption = '', mediaType = 'image') {
             const imageItem = document.createElement('div');
             imageItem.className = 'image-item';
             imageItem.draggable = true;
+            imageItem.dataset.mediaType = mediaType;
+
+            const mediaElement = mediaType === 'video'
+                ? `<video src="${mediaSrc}" class="image-preview" controls></video>`
+                : `<img src="${mediaSrc}" class="image-preview">`;
 
             imageItem.innerHTML = `
                 <button class="remove-image">×</button>
-                <img src="${imageSrc}" class="image-preview">
+                ${mediaElement}
                 <input type="text" class="image-caption" placeholder="Add caption..." value="${caption}">
             `;
 
@@ -1476,11 +1739,13 @@
             // Caption input
             imageItem.querySelector('.image-caption').addEventListener('input', triggerAutoSave);
 
-            // Double-click to fullscreen
-            const imgElement = imageItem.querySelector('.image-preview');
-            imgElement.addEventListener('dblclick', () => {
-                showFullscreen(imageSrc);
-            });
+            // Double-click to fullscreen (images only)
+            const mediaPreview = imageItem.querySelector('.image-preview');
+            if (mediaType === 'image') {
+                mediaPreview.addEventListener('dblclick', () => {
+                    showFullscreen(mediaSrc);
+                });
+            }
         }
 
         // Show image in fullscreen
@@ -1509,24 +1774,30 @@
                 addButton.className = 'add-image-area';
                 addButton.innerHTML = `
                     <div class="plus">+</div>
-                    <div class="hint">Upload Image</div>
+                    <div class="hint">Upload Image/Video</div>
                 `;
 
                 addButton.addEventListener('click', () => {
                     const input = document.createElement('input');
                     input.type = 'file';
-                    input.accept = 'image/*';
+                    input.accept = 'image/*,video/*';
                     input.multiple = true;
-                    input.onchange = (e) => {
+                    input.onchange = async (e) => {
                         const files = Array.from(e.target.files);
-                        files.forEach(file => {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                                addImageToContainer(container, event.target.result);
-                                triggerAutoSave();
-                            };
-                            reader.readAsDataURL(file);
-                        });
+                        for (const file of files) {
+                            if (file.type.startsWith('video/')) {
+                                // Upload video to R2
+                                await uploadVideoToR2(file, container);
+                            } else {
+                                // Handle image as before
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                    addImageToContainer(container, event.target.result, '', 'image');
+                                    triggerAutoSave();
+                                };
+                                reader.readAsDataURL(file);
+                            }
+                        }
                     };
                     input.click();
                 });
@@ -1608,8 +1879,22 @@
         // Auto-save functionality
         function triggerAutoSave() {
             clearTimeout(autoSaveTimeout);
-            autoSaveTimeout = setTimeout(() => {
-                saveToLocalStorage();
+            autoSaveTimeout = setTimeout(async () => {
+                const data = collectData();
+
+                // Save to localStorage as backup
+                localStorage.setItem('storyboardData', JSON.stringify(data));
+
+                // Save to cloud if we have a project
+                if (currentProjectId) {
+                    const projectName = localStorage.getItem('project_name') || 'Untitled Project';
+                    try {
+                        await saveProjectToCloud(projectName, data);
+                    } catch (error) {
+                        console.error('Cloud save failed, using localStorage backup');
+                    }
+                }
+
                 showAutoSavedIndicator();
             }, 500);
         }
@@ -1725,11 +2010,14 @@
 
                         ${rowData.images.length > 0 ? `
                             <div>
-                                <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 16px;">REFERENCE IMAGES</h3>
+                                <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 16px;">REFERENCE MEDIA</h3>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
                                     ${rowData.images.map(img => `
                                         <div style="background-color: #000; border: 1px solid #333; border-radius: 6px; padding: 10px;">
-                                            <img src="${img.src}" style="width: 100%; height: auto; border-radius: 4px; display: block; margin-bottom: 10px;">
+                                            ${img.type === 'video'
+                                                ? `<div style="width: 100%; height: auto; border-radius: 4px; display: block; margin-bottom: 10px; background: #1a1a1a; padding: 40px 0; text-align: center; color: #1E90FF; font-size: 14px;">📹 VIDEO<br><span style="font-size: 11px; color: #999;">${img.src.split('/').pop()}</span></div>`
+                                                : `<img src="${img.src}" style="width: 100%; height: auto; border-radius: 4px; display: block; margin-bottom: 10px;">`
+                                            }
                                             ${img.caption ? `<p style="margin: 0; font-size: 13px; color: #ccc; text-align: center;">${img.caption}</p>` : ''}
                                         </div>
                                     `).join('')}
@@ -1818,11 +2106,14 @@
 
                     ${rowData.images.length > 0 ? `
                         <div>
-                            <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 16px;">REFERENCE IMAGES</h3>
+                            <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 16px;">REFERENCE MEDIA</h3>
                             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
                                 ${rowData.images.map(img => `
                                     <div style="background-color: #000; border: 1px solid #333; border-radius: 6px; padding: 10px;">
-                                        <img src="${img.src}" style="width: 100%; height: auto; border-radius: 4px; display: block; margin-bottom: 10px;">
+                                        ${img.type === 'video'
+                                            ? `<div style="width: 100%; height: auto; border-radius: 4px; display: block; margin-bottom: 10px; background: #1a1a1a; padding: 40px 0; text-align: center; color: #1E90FF; font-size: 14px;">📹 VIDEO<br><span style="font-size: 11px; color: #999;">${img.src.split('/').pop()}</span></div>`
+                                            : `<img src="${img.src}" style="width: 100%; height: auto; border-radius: 4px; display: block; margin-bottom: 10px;">`
+                                        }
                                         ${img.caption ? `<p style="margin: 0; font-size: 13px; color: #ccc; text-align: center;">${img.caption}</p>` : ''}
                                     </div>
                                 `).join('')}
@@ -1923,12 +2214,58 @@
             }, 100);
         });
 
-        document.getElementById('savePngBtn').addEventListener('click', saveAsPNG);
-        document.getElementById('saveJsonBtn').addEventListener('click', saveAsJSON);
+        // New Project button
+        document.getElementById('newProjectBtn').addEventListener('click', async () => {
+            const projectName = prompt('Enter project name:');
+            if (!projectName) return;
 
-        document.getElementById('loadFileBtn').addEventListener('click', () => {
-            document.getElementById('fileInput').click();
+            // Clear current data
+            document.getElementById('tableBody').innerHTML = '';
+
+            // Add 5 empty rows
+            for (let i = 0; i < 5; i++) {
+                addRow();
+            }
+
+            // Set as current project
+            const projectId = projectName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
+            currentProjectId = projectId;
+            localStorage.setItem('currentProjectId', projectId);
+            localStorage.setItem('project_name', projectName);
+            updateProjectName(projectName);
+
+            // Save to cloud
+            const data = collectData();
+            try {
+                await saveProjectToCloud(projectName, data);
+                await loadProjectList();
+
+                // Select in dropdown
+                const selector = document.getElementById('projectSelector');
+                selector.value = projectId;
+
+                alert('Project created successfully!');
+            } catch (error) {
+                alert('Failed to create project: ' + error.message);
+            }
+
+            updateShotCounter();
         });
+
+        // Project selector change
+        document.getElementById('projectSelector').addEventListener('change', async (e) => {
+            const projectId = e.target.value;
+            if (!projectId) return;
+
+            if (confirm('Load this project? Any unsaved changes will be lost.')) {
+                await loadProjectFromCloud(projectId);
+            } else {
+                // Reset selector to current project
+                e.target.value = currentProjectId || '';
+            }
+        });
+
+        document.getElementById('savePngBtn').addEventListener('click', saveAsPNG);
 
         document.getElementById('fileInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -2151,13 +2488,13 @@
         document.getElementById('clearApiKey').addEventListener('click', clearApiKey);
         document.getElementById('cancelSettings').addEventListener('click', closeSettings);
 
-        // Modal action button event listeners (for portrait mode)
+        // Modal action button event listeners
         document.getElementById('modalSavePdf').addEventListener('click', () => {
             saveAsPNG();
             closeSettings();
         });
 
-        document.getElementById('modalSaveJson').addEventListener('click', () => {
+        document.getElementById('modalDownloadBackup').addEventListener('click', () => {
             saveAsJSON();
             closeSettings();
         });
@@ -2165,6 +2502,13 @@
         document.getElementById('modalLoadFile').addEventListener('click', () => {
             document.getElementById('fileInput').click();
             closeSettings();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                loadFromFile(file);
+            }
         });
 
         // Close settings modal when clicking outside
