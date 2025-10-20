@@ -611,6 +611,8 @@
             padding: 30px;
             max-width: 500px;
             width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
         .settings-content h2 {
@@ -963,7 +965,6 @@
             <div class="stat approved"><span id="approvedShots">0</span> approved</div>
             <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
         </div>
-        <div class="auto-saved" id="autoSavedIndicator"><span id="projectNameDisplay">No Project</span> - Saved ✓</div>
     </div>
 
     <div class="table-container">
@@ -2004,11 +2005,7 @@
         }
 
         function showAutoSavedIndicator() {
-            const indicator = document.getElementById('autoSavedIndicator');
-            indicator.style.opacity = '1';
-            setTimeout(() => {
-                indicator.style.opacity = '0.5';
-            }, 1000);
+            // Auto-save indicator removed - project name shown in dropdown
         }
 
         // Collect all data from the table
@@ -2605,12 +2602,6 @@
         function updateProjectName(name) {
             // Update page title
             document.title = name || 'Storyboard';
-
-            // Update project name display in header
-            const projectNameDisplay = document.getElementById('projectNameDisplay');
-            if (projectNameDisplay) {
-                projectNameDisplay.textContent = name || 'No Project';
-            }
         }
 
         // Delete project with confirmation
