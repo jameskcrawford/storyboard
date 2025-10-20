@@ -618,17 +618,19 @@
 
             /* Make textareas fit and show full placeholder */
             textarea {
-                min-height: 55px;
-                max-height: 70px;
+                min-height: 85px;
+                max-height: 110px;
                 font-size: 9px;
-                padding: 2px;
+                padding: 3px;
                 width: 100%;
-                line-height: 1.2;
+                line-height: 1.3;
+                overflow-y: auto;
             }
 
             textarea::placeholder {
                 font-size: 8px;
-                line-height: 1.1;
+                line-height: 1.3;
+                white-space: pre-wrap;
             }
 
             .status-select {
@@ -846,11 +848,21 @@
             // Drag and drop functionality
             const dragHandle = row.querySelector('.drag-handle');
 
+            // Mouse events (desktop)
             dragHandle.addEventListener('mousedown', () => {
                 row.setAttribute('draggable', 'true');
             });
 
             dragHandle.addEventListener('mouseup', () => {
+                row.setAttribute('draggable', 'false');
+            });
+
+            // Touch events (mobile)
+            dragHandle.addEventListener('touchstart', () => {
+                row.setAttribute('draggable', 'true');
+            });
+
+            dragHandle.addEventListener('touchend', () => {
                 row.setAttribute('draggable', 'false');
             });
 
@@ -1362,9 +1374,14 @@
 
         // Event listeners
         document.getElementById('addShotBtn').addEventListener('click', () => {
-            addRow();
+            const newRow = addRow();
             updateShotCounter();
             triggerAutoSave();
+
+            // Scroll to new row on mobile
+            setTimeout(() => {
+                newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         });
 
         document.getElementById('savePngBtn').addEventListener('click', saveAsPNG);
