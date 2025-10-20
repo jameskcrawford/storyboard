@@ -953,7 +953,7 @@
         <select id="projectSelector" style="padding: 10px; background-color: #333; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">
             <option value="">Select Project...</option>
         </select>
-        <button id="newProjectBtn">📁 New Project</button>
+        <button id="saveProjectBtn">💾 Save</button>
         <button id="savePngBtn">📄 Save Project as PDF</button>
         <button id="settingsBtn">⚙️ Settings</button>
         <input type="file" id="fileInput" accept=".json">
@@ -962,7 +962,7 @@
             <div class="stat approved"><span id="approvedShots">0</span> approved</div>
             <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
         </div>
-        <div class="auto-saved" id="autoSavedIndicator">Cloud saved ✓</div>
+        <div class="auto-saved" id="autoSavedIndicator"><span id="projectNameDisplay">No Project</span> - Saved ✓</div>
     </div>
 
     <div class="table-container">
@@ -1058,7 +1058,6 @@
             try {
                 const projectId = projectName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
                 const fileName = `projects/${projectId}.json`;
-                const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/${fileName}`;
 
                 const projectFile = {
                     id: projectId,
@@ -1067,17 +1066,10 @@
                     data: projectData
                 };
 
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(projectFile)
-                });
+                const jsonContent = JSON.stringify(projectFile);
 
-                if (!response.ok) {
-                    throw new Error(`Failed to save project: ${response.status}`);
-                }
+                // Upload with AWS Signature V4
+                await uploadToR2(fileName, jsonContent, 'application/json');
 
                 // Update project list
                 await updateProjectList(projectId, projectName);
@@ -1091,6 +1083,109 @@
                 saveToLocalStorage();
                 throw error;
             }
+        }
+
+        // Generic R2 upload with AWS Signature V4
+        async function uploadToR2(fileName, content, contentType) {
+            const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/${fileName}`;
+
+            const encoder = new TextEncoder();
+            const data = typeof content === 'string' ? encoder.encode(content) : content;
+
+            const date = new Date();
+            const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+            const dateStamp = amzDate.substring(0, 8);
+
+            // Calculate payload hash
+            const payloadHash = await sha256(data);
+
+            // Create canonical request
+            const canonicalRequest = [
+                'PUT',
+                `/${R2_CONFIG.bucketName}/${fileName}`,
+                '',
+                `host:${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
+                `x-amz-content-sha256:${payloadHash}`,
+                `x-amz-date:${amzDate}`,
+                '',
+                'host;x-amz-content-sha256;x-amz-date',
+                payloadHash
+            ].join('\n');
+
+            const canonicalRequestHash = await sha256Hex(canonicalRequest);
+
+            // Create string to sign
+            const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
+            const stringToSign = [
+                'AWS4-HMAC-SHA256',
+                amzDate,
+                credentialScope,
+                canonicalRequestHash
+            ].join('\n');
+
+            // Calculate signature
+            const signature = await calculateSignature(R2_CONFIG.secretAccessKey, dateStamp, stringToSign);
+
+            // Create authorization header
+            const authorization = `AWS4-HMAC-SHA256 Credential=${R2_CONFIG.accessKeyId}/${credentialScope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`;
+
+            // Make the request
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Host': `${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
+                    'x-amz-content-sha256': payloadHash,
+                    'x-amz-date': amzDate,
+                    'Authorization': authorization,
+                    'Content-Type': contentType
+                },
+                body: data
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+            }
+
+            return response;
+        }
+
+        // SHA256 helper for text
+        async function sha256Hex(text) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Calculate AWS Signature V4 signature
+        async function calculateSignature(secretKey, dateStamp, stringToSign) {
+            const kDate = await hmac(`AWS4${secretKey}`, dateStamp);
+            const kRegion = await hmac(kDate, 'auto');
+            const kService = await hmac(kRegion, 's3');
+            const kSigning = await hmac(kService, 'aws4_request');
+            const signature = await hmac(kSigning, stringToSign);
+
+            // Convert to hex
+            const hashArray = Array.from(new Uint8Array(signature));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // HMAC-SHA256 helper
+        async function hmac(key, data) {
+            const keyData = typeof key === 'string' ? new TextEncoder().encode(key) : key;
+            const messageData = new TextEncoder().encode(data);
+
+            const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                keyData,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+
+            return await crypto.subtle.sign('HMAC', cryptoKey, messageData);
         }
 
         // Load project from R2 cloud
@@ -1150,15 +1245,8 @@
                     lastModified: new Date().toISOString()
                 };
 
-                // Save updated list
-                const url = `${R2_CONFIG.endpoint}/${R2_CONFIG.bucketName}/projects/index.json`;
-                await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(projectList)
-                });
+                // Save updated list with proper authentication
+                await uploadToR2('projects/index.json', JSON.stringify(projectList), 'application/json');
 
             } catch (error) {
                 console.error('Error updating project list:', error);
@@ -1229,27 +1317,11 @@
                 const dateStamp = date.toISOString().split('T')[0].replace(/-/g, '');
                 const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '');
 
-                // Read file as ArrayBuffer
+                // Read file as ArrayBuffer for upload
                 const arrayBuffer = await file.arrayBuffer();
 
-                // Create headers
-                const headers = {
-                    'Host': `${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
-                    'x-amz-date': amzDate,
-                    'x-amz-content-sha256': await sha256(arrayBuffer),
-                    'Content-Type': file.type
-                };
-
-                // Upload to R2
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    headers: headers,
-                    body: file
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-                }
+                // Upload to R2 with proper authentication
+                await uploadToR2(fileName, arrayBuffer, file.type);
 
                 // Remove uploading indicator
                 uploadingDiv.remove();
@@ -2214,18 +2286,13 @@
             }, 100);
         });
 
-        // New Project button
-        document.getElementById('newProjectBtn').addEventListener('click', async () => {
-            const projectName = prompt('Enter project name:');
+        // Save button - saves current work as a project (prompts for name)
+        document.getElementById('saveProjectBtn').addEventListener('click', async () => {
+            const currentName = localStorage.getItem('project_name') || '';
+            const defaultName = currentName || `Project ${new Date().toLocaleDateString()}`;
+
+            const projectName = prompt('Enter project name:', defaultName);
             if (!projectName) return;
-
-            // Clear current data
-            document.getElementById('tableBody').innerHTML = '';
-
-            // Add 5 empty rows
-            for (let i = 0; i < 5; i++) {
-                addRow();
-            }
 
             // Set as current project
             const projectId = projectName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
@@ -2234,7 +2301,7 @@
             localStorage.setItem('project_name', projectName);
             updateProjectName(projectName);
 
-            // Save to cloud
+            // Save current data to cloud
             const data = collectData();
             try {
                 await saveProjectToCloud(projectName, data);
@@ -2244,9 +2311,9 @@
                 const selector = document.getElementById('projectSelector');
                 selector.value = projectId;
 
-                alert('Project created successfully!');
+                alert('Project saved successfully!');
             } catch (error) {
-                alert('Failed to create project: ' + error.message);
+                alert('Failed to save project: ' + error.message);
             }
 
             updateShotCounter();
@@ -2480,6 +2547,12 @@
         function updateProjectName(name) {
             // Update page title
             document.title = name || 'Storyboard';
+
+            // Update project name display in header
+            const projectNameDisplay = document.getElementById('projectNameDisplay');
+            if (projectNameDisplay) {
+                projectNameDisplay.textContent = name || 'No Project';
+            }
         }
 
         // Settings event listeners
