@@ -84,6 +84,18 @@
             justify-content: center;
         }
 
+        .saving-indicator {
+            color: #FF9800;
+            font-size: 12px;
+            margin-left: auto;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .saving-indicator.active {
+            opacity: 1;
+        }
+
         .shot-counter .stat {
             display: flex;
             align-items: center;
@@ -284,6 +296,13 @@
         .image-item.dragging {
             opacity: 0.5;
             border-color: #1E90FF;
+        }
+
+        .images-container.drop-target {
+            outline: 2px dashed #1E90FF;
+            outline-offset: 4px;
+            background-color: rgba(30, 144, 255, 0.1);
+            border-radius: 4px;
         }
 
         .image-item.drag-over {
@@ -965,6 +984,7 @@
             <div class="stat approved"><span id="approvedShots">0</span> approved</div>
             <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
         </div>
+        <div class="saving-indicator" id="savingIndicator">Saving...</div>
     </div>
 
     <div class="table-container">
@@ -1734,6 +1754,9 @@
             const imagesContainer = row.querySelector('.images-container');
             setupImageArea(imagesContainer, data?.images || []);
 
+            // Setup drop zones for cross-shot dragging (call after all rows are added)
+            setTimeout(() => setupImageContainerDropZones(), 0);
+
             return row;
         }
 
@@ -1823,8 +1846,8 @@
             imageItem.dataset.mediaType = mediaType;
 
             const mediaElement = mediaType === 'video'
-                ? `<video src="${mediaSrc}" class="image-preview" controls></video>`
-                : `<img src="${mediaSrc}" class="image-preview">`;
+                ? `<video src="${mediaSrc}" class="image-preview" controls loading="lazy" preload="metadata"></video>`
+                : `<img src="${mediaSrc}" class="image-preview" loading="lazy">`;
 
             imageItem.innerHTML = `
                 <button class="remove-image">×</button>
@@ -1944,24 +1967,30 @@
             }
         }
 
-        // Drag and drop functionality
+        // Drag and drop functionality for images (works across shots)
         function setupDragAndDrop(item, container) {
             item.addEventListener('dragstart', (e) => {
+                e.stopPropagation(); // Prevent row drag
                 item.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
             });
 
             item.addEventListener('dragend', () => {
                 item.classList.remove('dragging');
-                container.querySelectorAll('.image-item').forEach(i => {
+                // Remove drag-over class from all items
+                document.querySelectorAll('.image-item').forEach(i => {
                     i.classList.remove('drag-over');
+                });
+                // Remove drop-target highlighting
+                document.querySelectorAll('.images-container').forEach(cont => {
+                    cont.classList.remove('drop-target');
                 });
                 triggerAutoSave();
             });
 
             item.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                const draggingItem = container.querySelector('.dragging');
+                const draggingItem = document.querySelector('.image-item.dragging');
                 if (draggingItem && draggingItem !== item) {
                     item.classList.add('drag-over');
                 }
@@ -1973,13 +2002,14 @@
 
             item.addEventListener('drop', (e) => {
                 e.preventDefault();
-                const draggingItem = container.querySelector('.dragging');
+                e.stopPropagation();
+                const draggingItem = document.querySelector('.image-item.dragging');
                 if (draggingItem && draggingItem !== item) {
-                    const allItems = [...container.querySelectorAll('.image-item')];
+                    const allItems = [...item.parentElement.querySelectorAll('.image-item')];
                     const draggingIndex = allItems.indexOf(draggingItem);
                     const targetIndex = allItems.indexOf(item);
 
-                    if (draggingIndex < targetIndex) {
+                    if (draggingIndex < targetIndex && draggingItem.parentElement === item.parentElement) {
                         item.after(draggingItem);
                     } else {
                         item.before(draggingItem);
@@ -1989,16 +2019,80 @@
             });
         }
 
-        // Auto-save functionality
+        // Setup drop zones for all image containers (allows cross-shot dragging)
+        function setupImageContainerDropZones() {
+            document.querySelectorAll('.images-container').forEach(container => {
+                container.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    const draggable = document.querySelector('.image-item.dragging');
+
+                    if (!draggable) return;
+
+                    // Highlight drop zone
+                    container.classList.add('drop-target');
+
+                    // Find position to insert based on mouse position
+                    const afterElement = getDragAfterElementHorizontal(container, e.clientX);
+                    const addWrapper = container.querySelector('.add-image-wrapper');
+
+                    if (afterElement == null) {
+                        // Insert before add button
+                        if (addWrapper) {
+                            container.insertBefore(draggable, addWrapper);
+                        } else {
+                            container.appendChild(draggable);
+                        }
+                    } else {
+                        container.insertBefore(draggable, afterElement);
+                    }
+                });
+
+                container.addEventListener('dragleave', (e) => {
+                    // Only remove highlight if leaving the container entirely
+                    if (!container.contains(e.relatedTarget)) {
+                        container.classList.remove('drop-target');
+                    }
+                });
+
+                container.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    container.classList.remove('drop-target');
+                });
+            });
+        }
+
+        // Helper function to determine drop position in horizontal grid
+        function getDragAfterElementHorizontal(container, x) {
+            const draggableElements = [...container.querySelectorAll('.image-item:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = x - box.left - box.width / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // Auto-save functionality with debouncing (increased to 2 seconds to reduce API calls)
         function triggerAutoSave() {
             clearTimeout(autoSaveTimeout);
+
+            // Show saving indicator
+            const savingIndicator = document.getElementById('savingIndicator');
+            if (savingIndicator) {
+                savingIndicator.classList.add('active');
+            }
+
             autoSaveTimeout = setTimeout(async () => {
                 const data = collectData();
 
-                // Save to localStorage as backup
+                // Save to localStorage as backup (fast)
                 localStorage.setItem('storyboardData', JSON.stringify(data));
 
-                // Save to cloud if we have a project
+                // Save to cloud if we have a project (less frequently to improve performance)
                 if (currentProjectId) {
                     const projectName = localStorage.getItem('project_name') || 'Untitled Project';
                     try {
@@ -2008,8 +2102,13 @@
                     }
                 }
 
+                // Hide saving indicator
+                if (savingIndicator) {
+                    savingIndicator.classList.remove('active');
+                }
+
                 showAutoSavedIndicator();
-            }, 500);
+            }, 2000); // Increased from 500ms to 2000ms to reduce API calls
         }
 
         function saveToLocalStorage() {
@@ -2550,7 +2649,8 @@
         // Populate delete and rename project dropdowns
         async function populateDeleteDropdown() {
             try {
-                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
+                // Add cache busting to force fresh fetch
+                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json?t=${Date.now()}`;
                 const response = await fetch(listUrl);
 
                 const deleteSelect = document.getElementById('deleteProjectSelect');
