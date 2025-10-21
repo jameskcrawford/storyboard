@@ -256,6 +256,47 @@
             letter-spacing: 0.5px;
         }
 
+        .card-textarea-container {
+            position: relative;
+        }
+
+        .card-textarea-container textarea {
+            padding-bottom: 40px;
+        }
+
+        .card-textarea-buttons {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            display: flex;
+            gap: 3px;
+            z-index: 10;
+        }
+
+        .card-enhance-btn,
+        .card-mic-btn {
+            background-color: transparent;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .card-enhance-btn:hover,
+        .card-mic-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .card-mic-btn {
+            color: #ff0000;
+        }
+
+        .card-mic-btn.recording {
+            animation: pulse 1.5s infinite;
+        }
+
         .card-field textarea {
             width: 100%;
             background-color: #1a1a1a;
@@ -1296,17 +1337,35 @@
 
                 <div class="card-field">
                     <label>Visual Action</label>
-                    <textarea id="cardVisualAction" class="card-textarea" rows="4" placeholder="What do we see? What's happening?"></textarea>
+                    <div class="card-textarea-container">
+                        <textarea id="cardVisualAction" class="card-textarea" rows="4" placeholder="What do we see? What's happening?"></textarea>
+                        <div class="card-textarea-buttons">
+                            <button class="card-enhance-btn" data-target="cardVisualAction" title="Enhance with AI">✨</button>
+                            <button class="card-mic-btn" data-target="cardVisualAction" title="Voice Input">●</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card-field">
                     <label>Audio</label>
-                    <textarea id="cardAudio" class="card-textarea" rows="4" placeholder="What do we hear? Dialogue? Music? Sounds?"></textarea>
+                    <div class="card-textarea-container">
+                        <textarea id="cardAudio" class="card-textarea" rows="4" placeholder="What do we hear? Dialogue? Music? Sounds?"></textarea>
+                        <div class="card-textarea-buttons">
+                            <button class="card-enhance-btn" data-target="cardAudio" title="Enhance with AI">✨</button>
+                            <button class="card-mic-btn" data-target="cardAudio" title="Voice Input">●</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card-field">
                     <label>Shot Specs</label>
-                    <textarea id="cardShotSpecs" class="card-textarea" rows="4" placeholder="How do we film this? (e.g., CU, low angle, pan left)"></textarea>
+                    <div class="card-textarea-container">
+                        <textarea id="cardShotSpecs" class="card-textarea" rows="4" placeholder="How do we film this? (e.g., CU, low angle, pan left)"></textarea>
+                        <div class="card-textarea-buttons">
+                            <button class="card-enhance-btn" data-target="cardShotSpecs" title="Enhance with AI">✨</button>
+                            <button class="card-mic-btn" data-target="cardShotSpecs" title="Voice Input">●</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card-field">
@@ -1327,7 +1386,13 @@
 
                 <div class="card-field">
                     <label>Status Notes</label>
-                    <textarea id="cardStatusNotes" class="card-textarea" rows="3" placeholder="Add notes..."></textarea>
+                    <div class="card-textarea-container">
+                        <textarea id="cardStatusNotes" class="card-textarea" rows="3" placeholder="Add notes..."></textarea>
+                        <div class="card-textarea-buttons">
+                            <button class="card-enhance-btn" data-target="cardStatusNotes" title="Enhance with AI">✨</button>
+                            <button class="card-mic-btn" data-target="cardStatusNotes" title="Voice Input">●</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -3690,6 +3755,28 @@
             if (e.key === 'Escape' && document.getElementById('cardViewModal').style.display === 'flex') {
                 closeCardView();
             }
+        });
+
+        // Card view AI enhance buttons
+        document.querySelectorAll('.card-enhance-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-target');
+                const textarea = document.getElementById(targetId);
+                if (textarea) {
+                    enhanceTextWithAI(textarea);
+                }
+            });
+        });
+
+        // Card view mic buttons
+        document.querySelectorAll('.card-mic-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-target');
+                const textarea = document.getElementById(targetId);
+                if (textarea) {
+                    startVoiceInput(textarea, btn);
+                }
+            });
         });
 
         // Initialize
