@@ -16,9 +16,6 @@
     <meta name="apple-mobile-web-app-title" content="Storyboard">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- bcrypt library for password hashing -->
-    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
-
     <style>
         * {
             margin: 0;
@@ -1271,125 +1268,9 @@
                 max-width: 500px;
             }
         }
-
-        /* Login Screen Styles */
-        #loginScreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-        }
-
-        .login-container {
-            background-color: #1a1a1a;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            max-width: 400px;
-            width: 90%;
-        }
-
-        .login-container h2 {
-            margin-bottom: 30px;
-            text-align: center;
-            color: #fff;
-        }
-
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .login-input {
-            padding: 12px 16px;
-            background-color: #2a2a2a;
-            border: 1px solid #444;
-            border-radius: 6px;
-            color: #fff;
-            font-size: 16px;
-            outline: none;
-        }
-
-        .login-input:focus {
-            border-color: #666;
-        }
-
-        .login-btn {
-            padding: 12px;
-            background-color: #00C853;
-            color: #000;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .login-btn:hover {
-            background-color: #00E676;
-        }
-
-        .login-btn:active {
-            background-color: #00A344;
-        }
-
-        .login-error {
-            color: #ff5252;
-            text-align: center;
-            font-size: 14px;
-            display: none;
-        }
-
-        .login-error.show {
-            display: block;
-        }
-
-        .user-info {
-            color: #00C853;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .logout-btn {
-            padding: 6px 12px;
-            background-color: #444;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .logout-btn:hover {
-            background-color: #555;
-        }
     </style>
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="loginScreen">
-        <div class="login-container">
-            <h2>Storyboard Login</h2>
-            <div class="login-form">
-                <input type="text" id="usernameInput" class="login-input" placeholder="Username" autocomplete="username">
-                <input type="password" id="passwordInput" class="login-input" placeholder="Password" autocomplete="current-password">
-                <button id="loginBtn" class="login-btn">Login</button>
-                <div id="loginError" class="login-error">Invalid username or password</div>
-            </div>
-        </div>
-    </div>
-
     <div class="header">
         <button id="addShotBtn">+ Add Shot</button>
         <select id="projectSelector" style="padding: 10px; background-color: #333; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">
@@ -1405,10 +1286,6 @@
             <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
         </div>
         <div class="saving-indicator" id="savingIndicator">Saving...</div>
-        <div class="user-info" id="userInfo" style="display: none;">
-            <span id="currentUser"></span>
-            <button id="logoutBtn" class="logout-btn">Logout</button>
-        </div>
     </div>
 
     <div class="table-container">
@@ -1625,97 +1502,6 @@
         let undoStack = [];
         let redoStack = [];
         const MAX_UNDO_STACK = 20;
-
-        // Authentication System
-        // User credentials with bcrypt hashed passwords
-        // IMPORTANT: These are hashed passwords. You'll need to set your actual passwords below.
-        const USERS = {
-            'james': '$2a$10$8eO7xqJ5cP.vE0eK0nF1.OYrGZ0qF4XvK5xqHpJsNzY0yXqZqJ1O2', // Password: runningscared1
-            'cody': '$2a$10$9fP8yrK6dQ.wF1fL1oG2.PZsHa1rG5YwL6yrIqKtOaZ1zYraZqK2P'    // Password: runningscared2
-        };
-
-        let currentUser = null;
-
-        // Check authentication on page load
-        function checkAuth() {
-            const savedUser = localStorage.getItem('storyboard_user');
-            const savedAuthTime = localStorage.getItem('storyboard_auth_time');
-
-            if (savedUser && savedAuthTime) {
-                // Keep user logged in indefinitely
-                currentUser = savedUser;
-                showMainApp();
-                return true;
-            }
-
-            showLoginScreen();
-            return false;
-        }
-
-        // Verify user credentials
-        async function verifyCredentials(username, password) {
-            const hashedPassword = USERS[username.toLowerCase()];
-            if (!hashedPassword) {
-                return false;
-            }
-
-            try {
-                return await bcrypt.compare(password, hashedPassword);
-            } catch (error) {
-                console.error('Password verification error:', error);
-                return false;
-            }
-        }
-
-        // Login function
-        async function login(username, password) {
-            const isValid = await verifyCredentials(username, password);
-
-            if (isValid) {
-                currentUser = username.toLowerCase();
-                localStorage.setItem('storyboard_user', currentUser);
-                localStorage.setItem('storyboard_auth_time', Date.now().toString());
-                showMainApp();
-                return true;
-            }
-
-            return false;
-        }
-
-        // Logout function
-        function logout() {
-            currentUser = null;
-            localStorage.removeItem('storyboard_user');
-            localStorage.removeItem('storyboard_auth_time');
-            showLoginScreen();
-        }
-
-        // Show login screen
-        function showLoginScreen() {
-            document.getElementById('loginScreen').style.display = 'flex';
-            document.querySelector('.header').style.display = 'none';
-            document.querySelector('.table-container').style.display = 'none';
-            document.getElementById('userInfo').style.display = 'none';
-        }
-
-        // Show main app
-        function showMainApp() {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.querySelector('.header').style.display = 'flex';
-            document.querySelector('.table-container').style.display = 'block';
-            document.getElementById('userInfo').style.display = 'flex';
-            document.getElementById('currentUser').textContent = `Logged in as ${currentUser}`;
-        }
-
-        // Require authentication for sensitive operations
-        function requireAuth() {
-            if (!currentUser) {
-                alert('You must be logged in to perform this action');
-                showLoginScreen();
-                return false;
-            }
-            return true;
-        }
 
         // R2 Configuration
         const R2_CONFIG = {
@@ -2132,11 +1918,6 @@
 
         // Initialize with 5 rows
         async function init() {
-            // Check authentication first
-            if (!checkAuth()) {
-                return; // Don't load anything if not authenticated
-            }
-
             // Load project list
             await loadProjectList();
 
@@ -2887,7 +2668,7 @@
                 localStorage.setItem('storyboardData', JSON.stringify(data));
 
                 // Save to cloud if we have a project (less frequently to improve performance)
-                if (currentProjectId && currentUser) {
+                if (currentProjectId) {
                     const projectName = localStorage.getItem('project_name') || 'Untitled Project';
                     try {
                         await saveProjectToCloud(projectName, data);
@@ -3590,8 +3371,6 @@
 
         // Save button - saves current work as a project (prompts for name)
         document.getElementById('saveProjectBtn').addEventListener('click', async () => {
-            if (!requireAuth()) return;
-
             const currentName = localStorage.getItem('project_name') || '';
             const defaultName = currentName || `Project ${new Date().toLocaleDateString()}`;
 
@@ -3975,8 +3754,6 @@
 
         // Delete project with confirmation
         async function deleteProject() {
-            if (!requireAuth()) return;
-
             const deleteSelect = document.getElementById('deleteProjectSelect');
             const projectId = deleteSelect.value;
 
@@ -4310,54 +4087,6 @@
                     startVoiceInput(textarea, btn);
                 }
             });
-        });
-
-        // Login event listeners
-        document.getElementById('loginBtn').addEventListener('click', async () => {
-            const username = document.getElementById('usernameInput').value.trim();
-            const password = document.getElementById('passwordInput').value;
-            const errorDiv = document.getElementById('loginError');
-
-            if (!username || !password) {
-                errorDiv.textContent = 'Please enter username and password';
-                errorDiv.classList.add('show');
-                return;
-            }
-
-            errorDiv.classList.remove('show');
-
-            const success = await login(username, password);
-
-            if (success) {
-                // Clear form
-                document.getElementById('usernameInput').value = '';
-                document.getElementById('passwordInput').value = '';
-                // Reload the app with user data
-                await init();
-            } else {
-                errorDiv.textContent = 'Invalid username or password';
-                errorDiv.classList.add('show');
-            }
-        });
-
-        // Allow Enter key to submit login
-        document.getElementById('passwordInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('loginBtn').click();
-            }
-        });
-
-        document.getElementById('usernameInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('passwordInput').focus();
-            }
-        });
-
-        // Logout event listener
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            if (confirm('Are you sure you want to logout?')) {
-                logout();
-            }
         });
 
         // Initialize
