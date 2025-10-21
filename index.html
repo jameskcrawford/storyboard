@@ -1448,8 +1448,12 @@
         };
 
         // Save project to R2 cloud
-        async function saveProjectToCloud(projectName, projectData) {
+        async function saveProjectToCloud(projectName, projectData, showProgressBar = false) {
             try {
+                if (showProgressBar) {
+                    showProgress('Saving project...', 'Preparing project data', 0);
+                }
+
                 const projectId = projectName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
                 const fileName = `projects/${projectId}.json`;
 
@@ -1462,11 +1466,23 @@
 
                 const jsonContent = JSON.stringify(projectFile);
 
+                if (showProgressBar) {
+                    updateProgress('Uploading to cloud storage', 50);
+                }
+
                 // Upload with AWS Signature V4
                 await uploadToR2(fileName, jsonContent, 'application/json');
 
+                if (showProgressBar) {
+                    updateProgress('Updating project list', 80);
+                }
+
                 // Update project list
                 await updateProjectList(projectId, projectName);
+
+                if (showProgressBar) {
+                    updateProgress('Project saved successfully!', 100);
+                }
 
                 console.log('Project saved to cloud:', projectName);
                 return projectId;
@@ -1606,12 +1622,16 @@
         // Load project from R2 cloud
         async function loadProjectFromCloud(projectId) {
             try {
+                // Show initial loading progress
+                showProgress('Loading project...', 'Fetching project data', 0);
+
                 const fileName = `projects/${projectId}.json`;
                 const url = `${R2_CONFIG.publicUrl}/${fileName}`;
 
                 const response = await fetch(url);
 
                 if (!response.ok) {
+                    hideProgress();
                     throw new Error(`Failed to load project: ${response.status}`);
                 }
 
@@ -1626,13 +1646,17 @@
                     localStorage.setItem('project_name', projectFile.name);
                 }
 
-                // Load the data
-                loadData(projectFile.data);
+                // Load the data with progress tracking
+                await loadData(projectFile.data, true);
                 updateShotCounter();
 
                 console.log('Project loaded from cloud:', projectFile.name);
 
+                // Hide progress after a short delay
+                setTimeout(() => hideProgress(), 300);
+
             } catch (error) {
+                hideProgress();
                 console.error('Error loading project from cloud:', error);
                 alert('Failed to load project: ' + error.message);
             }
@@ -2618,13 +2642,29 @@
         }
 
         // Load data into the table
-        function loadData(data) {
+        async function loadData(data, showProgressBar = false) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
 
-            data.forEach(rowData => {
+            const totalShots = data.length;
+
+            for (let i = 0; i < totalShots; i++) {
+                const rowData = data[i];
+
+                if (showProgressBar) {
+                    const progress = Math.round(((i + 1) / totalShots) * 100);
+                    // Update progress
+                    updateProgress(`Loading shot ${i + 1} of ${totalShots}`, progress);
+                }
+
+                // Add row
                 addRow(rowData);
-            });
+
+                // Small delay to allow UI to update and not block the main thread
+                if (showProgressBar && i < totalShots - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+            }
         }
 
         // Show/hide progress overlay
@@ -2972,15 +3012,20 @@
             // Save current data to cloud
             const data = collectData();
             try {
-                await saveProjectToCloud(projectName, data);
+                await saveProjectToCloud(projectName, data, true);
                 await loadProjectList();
 
                 // Select in dropdown
                 const selector = document.getElementById('projectSelector');
                 selector.value = projectId;
 
-                alert('Project saved successfully!');
+                // Show success message for 1 second before hiding progress
+                setTimeout(() => {
+                    hideProgress();
+                    alert(`Project "${projectName}" saved successfully!`);
+                }, 1000);
             } catch (error) {
+                hideProgress();
                 alert('Failed to save project: ' + error.message);
             }
 
