@@ -15,6 +15,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Storyboard">
     <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- bcrypt library for password hashing -->
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -1267,9 +1271,125 @@
                 max-width: 500px;
             }
         }
+
+        /* Login Screen Styles */
+        #loginScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .login-container {
+            background-color: #1a1a1a;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-container h2 {
+            margin-bottom: 30px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .login-input {
+            padding: 12px 16px;
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .login-input:focus {
+            border-color: #666;
+        }
+
+        .login-btn {
+            padding: 12px;
+            background-color: #00C853;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .login-btn:hover {
+            background-color: #00E676;
+        }
+
+        .login-btn:active {
+            background-color: #00A344;
+        }
+
+        .login-error {
+            color: #ff5252;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+
+        .login-error.show {
+            display: block;
+        }
+
+        .user-info {
+            color: #00C853;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logout-btn {
+            padding: 6px 12px;
+            background-color: #444;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .logout-btn:hover {
+            background-color: #555;
+        }
     </style>
 </head>
 <body>
+    <!-- Login Screen -->
+    <div id="loginScreen">
+        <div class="login-container">
+            <h2>Storyboard Login</h2>
+            <div class="login-form">
+                <input type="text" id="usernameInput" class="login-input" placeholder="Username" autocomplete="username">
+                <input type="password" id="passwordInput" class="login-input" placeholder="Password" autocomplete="current-password">
+                <button id="loginBtn" class="login-btn">Login</button>
+                <div id="loginError" class="login-error">Invalid username or password</div>
+            </div>
+        </div>
+    </div>
+
     <div class="header">
         <button id="addShotBtn">+ Add Shot</button>
         <select id="projectSelector" style="padding: 10px; background-color: #333; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">
@@ -1285,6 +1405,10 @@
             <div class="stat in-progress"><span id="inProgressShots">0</span> in progress</div>
         </div>
         <div class="saving-indicator" id="savingIndicator">Saving...</div>
+        <div class="user-info" id="userInfo" style="display: none;">
+            <span id="currentUser"></span>
+            <button id="logoutBtn" class="logout-btn">Logout</button>
+        </div>
     </div>
 
     <div class="table-container">
@@ -1501,6 +1625,97 @@
         let undoStack = [];
         let redoStack = [];
         const MAX_UNDO_STACK = 20;
+
+        // Authentication System
+        // User credentials with bcrypt hashed passwords
+        // IMPORTANT: These are hashed passwords. You'll need to set your actual passwords below.
+        const USERS = {
+            'james': '$2a$10$8eO7xqJ5cP.vE0eK0nF1.OYrGZ0qF4XvK5xqHpJsNzY0yXqZqJ1O2', // Password: runningscared1
+            'cody': '$2a$10$9fP8yrK6dQ.wF1fL1oG2.PZsHa1rG5YwL6yrIqKtOaZ1zYraZqK2P'    // Password: runningscared2
+        };
+
+        let currentUser = null;
+
+        // Check authentication on page load
+        function checkAuth() {
+            const savedUser = localStorage.getItem('storyboard_user');
+            const savedAuthTime = localStorage.getItem('storyboard_auth_time');
+
+            if (savedUser && savedAuthTime) {
+                // Keep user logged in indefinitely
+                currentUser = savedUser;
+                showMainApp();
+                return true;
+            }
+
+            showLoginScreen();
+            return false;
+        }
+
+        // Verify user credentials
+        async function verifyCredentials(username, password) {
+            const hashedPassword = USERS[username.toLowerCase()];
+            if (!hashedPassword) {
+                return false;
+            }
+
+            try {
+                return await bcrypt.compare(password, hashedPassword);
+            } catch (error) {
+                console.error('Password verification error:', error);
+                return false;
+            }
+        }
+
+        // Login function
+        async function login(username, password) {
+            const isValid = await verifyCredentials(username, password);
+
+            if (isValid) {
+                currentUser = username.toLowerCase();
+                localStorage.setItem('storyboard_user', currentUser);
+                localStorage.setItem('storyboard_auth_time', Date.now().toString());
+                showMainApp();
+                return true;
+            }
+
+            return false;
+        }
+
+        // Logout function
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('storyboard_user');
+            localStorage.removeItem('storyboard_auth_time');
+            showLoginScreen();
+        }
+
+        // Show login screen
+        function showLoginScreen() {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.querySelector('.header').style.display = 'none';
+            document.querySelector('.table-container').style.display = 'none';
+            document.getElementById('userInfo').style.display = 'none';
+        }
+
+        // Show main app
+        function showMainApp() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.querySelector('.header').style.display = 'flex';
+            document.querySelector('.table-container').style.display = 'block';
+            document.getElementById('userInfo').style.display = 'flex';
+            document.getElementById('currentUser').textContent = `Logged in as ${currentUser}`;
+        }
+
+        // Require authentication for sensitive operations
+        function requireAuth() {
+            if (!currentUser) {
+                alert('You must be logged in to perform this action');
+                showLoginScreen();
+                return false;
+            }
+            return true;
+        }
 
         // R2 Configuration
         const R2_CONFIG = {
@@ -1917,6 +2132,11 @@
 
         // Initialize with 5 rows
         async function init() {
+            // Check authentication first
+            if (!checkAuth()) {
+                return; // Don't load anything if not authenticated
+            }
+
             // Load project list
             await loadProjectList();
 
@@ -1978,10 +2198,10 @@
             return String(rows.length + 1).padStart(3, '0');
         }
 
-        // Add a new row
+        // Add a new row (wrapper for backward compatibility)
         function addRow(data = null) {
             const tbody = document.getElementById('tableBody');
-            const row = document.createElement('tr');
+            const row = createRow(data);
 
             const shotNum = data?.shotNumber || getNextShotNumber();
 
@@ -2667,7 +2887,7 @@
                 localStorage.setItem('storyboardData', JSON.stringify(data));
 
                 // Save to cloud if we have a project (less frequently to improve performance)
-                if (currentProjectId) {
+                if (currentProjectId && currentUser) {
                     const projectName = localStorage.getItem('project_name') || 'Untitled Project';
                     try {
                         await saveProjectToCloud(projectName, data);
@@ -2682,7 +2902,7 @@
                 }
 
                 showAutoSavedIndicator();
-            }, 2000); // Increased from 500ms to 2000ms to reduce API calls
+            }, 3000); // Increased to 3000ms for better performance and fewer R2 uploads
         }
 
         function saveToLocalStorage() {
@@ -2713,6 +2933,10 @@
 
             const totalShots = data.length;
 
+            // Use DocumentFragment for batch DOM updates - much faster!
+            const fragment = document.createDocumentFragment();
+            const tempContainer = document.createElement('tbody');
+
             for (let i = 0; i < totalShots; i++) {
                 const rowData = data[i];
 
@@ -2722,14 +2946,319 @@
                     updateProgress(`Loading shot ${i + 1} of ${totalShots}`, progress);
                 }
 
-                // Add row
-                addRow(rowData);
+                // Add row to temporary container instead of real DOM
+                const row = createRow(rowData);
+                tempContainer.appendChild(row);
 
-                // Small delay to allow UI to update and not block the main thread
-                if (showProgressBar && i < totalShots - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 10));
+                // Small delay every 10 rows to allow UI to update when showing progress
+                if (showProgressBar && i > 0 && i % 10 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 5));
                 }
             }
+
+            // Single DOM update - append all rows at once
+            while (tempContainer.firstChild) {
+                fragment.appendChild(tempContainer.firstChild);
+            }
+            tbody.appendChild(fragment);
+
+            // Setup event listeners after all rows are in DOM
+            setupAllEventListeners();
+        }
+
+        // Create row element without appending to DOM
+        function createRow(data) {
+            const row = document.createElement('tr');
+            const shotNum = data?.shotNumber || getNextShotNumber();
+
+            row.innerHTML = `
+                <td class="shot-number"><input type="text" class="shot-number-input" value="${shotNum}"></td>
+                <td>
+                    <div class="textarea-container">
+                        <textarea class="visual-action" placeholder="What do we see? What's happening?">${data?.visualAction || data?.shotDescription || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="textarea-container">
+                        <textarea class="audio" placeholder="What do we hear? Dialogue? Music? Sounds?">${data?.audio || data?.dialogue || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="textarea-container">
+                        <textarea class="shot-specs" placeholder="How do we film this? (e.g., CU, low angle, pan left)">${data?.shotSpecs || data?.subjects || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
+                        </div>
+                    </div>
+                </td>
+                <td class="reference-images-cell">
+                    <div class="images-container"></div>
+                </td>
+                <td>
+                    <div class="status-container">
+                        <select class="status-select">
+                            <option value="planned" ${(data?.status || 'planned') === 'planned' ? 'selected' : ''}>Planned</option>
+                            <option value="in-progress" ${data?.status === 'in-progress' ? 'selected' : ''}>In Progress</option>
+                            <option value="shot" ${data?.status === 'shot' ? 'selected' : ''}>Shot</option>
+                            <option value="approved" ${data?.status === 'approved' ? 'selected' : ''}>Approved</option>
+                            <option value="needs-reshoot" ${data?.status === 'needs-reshoot' ? 'selected' : ''}>Needs Reshoot</option>
+                        </select>
+                        <textarea class="status-notes" placeholder="Add notes...">${data?.notes || ''}</textarea>
+                        <div class="textarea-buttons">
+                            <button class="enhance-btn" title="Enhance with AI">✨</button>
+                            <button class="mic-btn" title="Voice Input">●</button>
+                        </div>
+                    </div>
+                </td>
+                <td class="actions-cell">
+                    <div class="action-buttons">
+                        <button class="drag-handle" title="Drag to Reorder">☰</button>
+                        <button class="view-card-btn" title="View Card">⛶</button>
+                        <button class="duplicate-row" title="Duplicate Shot">⧉</button>
+                        <button class="lock-toggle" title="${data?.locked ? 'Unlock Shot' : 'Lock Shot'}" data-locked="${data?.locked ? 'true' : 'false'}">${data?.locked ? '🔒' : '🔓'}</button>
+                        <button class="export-shot" title="Export Shot as PNG">⎙</button>
+                        <button class="delete-row" title="Delete Shot">×</button>
+                    </div>
+                </td>
+            `;
+
+            // Apply locked class if needed
+            if (data?.locked) {
+                row.classList.add('locked');
+            }
+
+            // Load images/videos
+            if (data?.images) {
+                const imagesContainer = row.querySelector('.images-container');
+                data.images.forEach(imgData => {
+                    addImageToContainer(imagesContainer, imgData.src, imgData.type || 'image');
+                });
+            }
+
+            return row;
+        }
+
+        // Setup all event listeners after batch load
+        function setupAllEventListeners() {
+            const tbody = document.getElementById('tableBody');
+            const rows = tbody.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                setupRowEventListeners(row);
+            });
+
+            // Setup image drag and drop
+            setupImageContainerDropZones();
+        }
+
+        // Setup event listeners for a single row
+        function setupRowEventListeners(row) {
+            // Text area and input change listeners
+            row.querySelectorAll('textarea, .shot-number-input, .status-select').forEach(input => {
+                input.addEventListener('input', triggerAutoSave);
+                if (input.tagName === 'SELECT') {
+                    input.addEventListener('change', () => {
+                        triggerAutoSave();
+                        updateShotCounter();
+                    });
+                }
+            });
+
+            // Drag handle
+            const dragHandle = row.querySelector('.drag-handle');
+            setupDragHandle(row, dragHandle);
+
+            // Lock toggle
+            row.querySelector('.lock-toggle').addEventListener('click', function() {
+                const isLocked = this.getAttribute('data-locked') === 'true';
+                this.setAttribute('data-locked', !isLocked);
+                this.textContent = !isLocked ? '🔒' : '🔓';
+                this.title = !isLocked ? 'Unlock Shot' : 'Lock Shot';
+                row.classList.toggle('locked');
+                triggerAutoSave();
+            });
+
+            // Duplicate row
+            row.querySelector('.duplicate-row').addEventListener('click', () => {
+                const rowData = getRowData(row);
+                const newRow = createRow(rowData);
+                row.after(newRow);
+                setupRowEventListeners(newRow);
+                renumberShots();
+                updateShotCounter();
+                triggerAutoSave();
+            });
+
+            // Export shot
+            row.querySelector('.export-shot').addEventListener('click', () => {
+                exportSingleShot(row);
+            });
+
+            // View card
+            row.querySelector('.view-card-btn').addEventListener('click', () => {
+                openCardView(row);
+            });
+
+            // Delete row
+            row.querySelector('.delete-row').addEventListener('click', () => {
+                if (confirm('Are you sure you want to delete this shot?')) {
+                    row.remove();
+                    renumberShots();
+                    updateShotCounter();
+                    triggerAutoSave();
+                }
+            });
+
+            // Setup microphone and enhance buttons
+            setupTextButtons(row);
+        }
+
+        // Setup drag handle for a row
+        function setupDragHandle(row, dragHandle) {
+            let touchStartY = 0;
+            let touchCurrentY = 0;
+            let isDragging = false;
+
+            // Desktop drag and drop
+            dragHandle.addEventListener('mousedown', () => {
+                row.setAttribute('draggable', 'true');
+            });
+
+            dragHandle.addEventListener('mouseup', () => {
+                row.setAttribute('draggable', 'false');
+            });
+
+            // Touch drag events
+            dragHandle.addEventListener('touchstart', (e) => {
+                if (row.classList.contains('locked')) return;
+                touchStartY = e.touches[0].clientY;
+                isDragging = true;
+                row.style.opacity = '0.5';
+                row.style.position = 'relative';
+                e.preventDefault();
+            });
+
+            dragHandle.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                touchCurrentY = e.touches[0].clientY;
+                const deltaY = touchCurrentY - touchStartY;
+                row.style.transform = `translateY(${deltaY}px)`;
+
+                const allRows = [...document.querySelectorAll('#tableBody tr')];
+                const rowHeight = row.offsetHeight;
+                const currentIndex = allRows.indexOf(row);
+                const moveByRows = Math.round(deltaY / rowHeight);
+                const targetIndex = currentIndex + moveByRows;
+
+                allRows.forEach(r => r.classList.remove('drag-over'));
+
+                if (targetIndex >= 0 && targetIndex < allRows.length && targetIndex !== currentIndex) {
+                    allRows[targetIndex].classList.add('drag-over');
+                }
+
+                e.preventDefault();
+            });
+
+            dragHandle.addEventListener('touchend', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                row.style.opacity = '';
+                row.style.transform = '';
+                row.style.position = '';
+
+                const allRows = [...document.querySelectorAll('#tableBody tr')];
+                const rowHeight = row.offsetHeight;
+                const currentIndex = allRows.indexOf(row);
+                const deltaY = touchCurrentY - touchStartY;
+                const moveByRows = Math.round(deltaY / rowHeight);
+                const targetIndex = currentIndex + moveByRows;
+
+                if (targetIndex >= 0 && targetIndex < allRows.length && targetIndex !== currentIndex) {
+                    const targetRow = allRows[targetIndex];
+                    if (targetIndex < currentIndex) {
+                        targetRow.before(row);
+                    } else {
+                        targetRow.after(row);
+                    }
+                    renumberShots();
+                    triggerAutoSave();
+                }
+
+                allRows.forEach(r => r.classList.remove('drag-over'));
+                e.preventDefault();
+            });
+
+            // Desktop drag events
+            row.addEventListener('dragstart', (e) => {
+                if (row.classList.contains('locked')) {
+                    e.preventDefault();
+                    return;
+                }
+                row.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            row.addEventListener('dragend', () => {
+                row.classList.remove('dragging');
+                document.querySelectorAll('#tableBody tr').forEach(r => r.classList.remove('drag-over'));
+            });
+
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const draggingRow = document.querySelector('.dragging');
+                if (!draggingRow || draggingRow === row) return;
+
+                const allRows = [...document.querySelectorAll('#tableBody tr')];
+                const currentIndex = allRows.indexOf(draggingRow);
+                const targetIndex = allRows.indexOf(row);
+
+                if (currentIndex < targetIndex) {
+                    row.after(draggingRow);
+                } else {
+                    row.before(draggingRow);
+                }
+            });
+
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                renumberShots();
+                triggerAutoSave();
+            });
+        }
+
+        // Setup text enhancement and mic buttons for a row
+        function setupTextButtons(row) {
+            const micButtons = row.querySelectorAll('.mic-btn');
+            const enhanceButtons = row.querySelectorAll('.enhance-btn');
+
+            micButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const container = btn.closest('.textarea-container, .status-container');
+                    const textarea = container.querySelector('textarea');
+                    startVoiceInput(textarea, btn);
+                });
+            });
+
+            enhanceButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const container = btn.closest('.textarea-container, .status-container');
+                    const textarea = container.querySelector('textarea');
+                    enhanceTextWithAI(textarea);
+                });
+            });
+
+            // File input for images/videos
+            const imagesContainer = row.querySelector('.images-container');
+            setupImageUpload(imagesContainer);
         }
 
         // Show/hide progress overlay
@@ -3061,6 +3590,8 @@
 
         // Save button - saves current work as a project (prompts for name)
         document.getElementById('saveProjectBtn').addEventListener('click', async () => {
+            if (!requireAuth()) return;
+
             const currentName = localStorage.getItem('project_name') || '';
             const defaultName = currentName || `Project ${new Date().toLocaleDateString()}`;
 
@@ -3444,6 +3975,8 @@
 
         // Delete project with confirmation
         async function deleteProject() {
+            if (!requireAuth()) return;
+
             const deleteSelect = document.getElementById('deleteProjectSelect');
             const projectId = deleteSelect.value;
 
@@ -3777,6 +4310,54 @@
                     startVoiceInput(textarea, btn);
                 }
             });
+        });
+
+        // Login event listeners
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            const username = document.getElementById('usernameInput').value.trim();
+            const password = document.getElementById('passwordInput').value;
+            const errorDiv = document.getElementById('loginError');
+
+            if (!username || !password) {
+                errorDiv.textContent = 'Please enter username and password';
+                errorDiv.classList.add('show');
+                return;
+            }
+
+            errorDiv.classList.remove('show');
+
+            const success = await login(username, password);
+
+            if (success) {
+                // Clear form
+                document.getElementById('usernameInput').value = '';
+                document.getElementById('passwordInput').value = '';
+                // Reload the app with user data
+                await init();
+            } else {
+                errorDiv.textContent = 'Invalid username or password';
+                errorDiv.classList.add('show');
+            }
+        });
+
+        // Allow Enter key to submit login
+        document.getElementById('passwordInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('loginBtn').click();
+            }
+        });
+
+        document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('passwordInput').focus();
+            }
+        });
+
+        // Logout event listener
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to logout?')) {
+                logout();
+            }
         });
 
         // Initialize
