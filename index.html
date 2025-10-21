@@ -1032,6 +1032,18 @@
                 </div>
             </div>
 
+            <!-- Rename Project Section -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #333;">
+                <h3 style="margin: 0 0 15px 0; color: #1E90FF; font-size: 18px;">Rename Project</h3>
+                <label for="renameProjectSelect">Select Project to Rename</label>
+                <select id="renameProjectSelect" style="width: 100%; padding: 10px; background-color: #000; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 14px; margin-top: 8px;">
+                    <option value="">Select a project to rename...</option>
+                </select>
+                <div class="button-group" style="margin-top: 15px;">
+                    <button id="renameProjectBtn" style="background-color: #1E90FF; color: #fff; width: 100%;">✏️ Rename Project</button>
+                </div>
+            </div>
+
             <!-- Delete Project Section -->
             <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #333;">
                 <h3 style="margin: 0 0 15px 0; color: #F44336; font-size: 18px;">Danger Zone</h3>
@@ -2534,14 +2546,17 @@
             modal.classList.add('active');
         }
 
-        // Populate delete project dropdown
+        // Populate delete and rename project dropdowns
         async function populateDeleteDropdown() {
             try {
                 const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
                 const response = await fetch(listUrl);
 
                 const deleteSelect = document.getElementById('deleteProjectSelect');
+                const renameSelect = document.getElementById('renameProjectSelect');
+
                 deleteSelect.innerHTML = '<option value="">Select a project to delete...</option>';
+                renameSelect.innerHTML = '<option value="">Select a project to rename...</option>';
 
                 if (!response.ok) {
                     return;
@@ -2550,11 +2565,19 @@
                 const projectList = await response.json();
 
                 for (const [id, info] of Object.entries(projectList)) {
-                    const option = document.createElement('option');
-                    option.value = id;
-                    option.textContent = info.name;
-                    option.dataset.projectName = info.name;
-                    deleteSelect.appendChild(option);
+                    // Add to delete dropdown
+                    const deleteOption = document.createElement('option');
+                    deleteOption.value = id;
+                    deleteOption.textContent = info.name;
+                    deleteOption.dataset.projectName = info.name;
+                    deleteSelect.appendChild(deleteOption);
+
+                    // Add to rename dropdown
+                    const renameOption = document.createElement('option');
+                    renameOption.value = id;
+                    renameOption.textContent = info.name;
+                    renameOption.dataset.projectName = info.name;
+                    renameSelect.appendChild(renameOption);
                 }
 
             } catch (error) {
@@ -2602,6 +2625,71 @@
         function updateProjectName(name) {
             // Update page title
             document.title = name || 'Storyboard';
+        }
+
+        // Rename project
+        async function renameProject() {
+            const renameSelect = document.getElementById('renameProjectSelect');
+            const projectId = renameSelect.value;
+
+            if (!projectId) {
+                alert('Please select a project to rename');
+                return;
+            }
+
+            const selectedOption = renameSelect.options[renameSelect.selectedIndex];
+            const oldName = selectedOption.dataset.projectName;
+
+            const newName = prompt(`Enter new name for "${oldName}":`, oldName);
+
+            if (!newName || newName.trim() === '') {
+                alert('Project name cannot be empty');
+                return;
+            }
+
+            if (newName === oldName) {
+                alert('New name is the same as old name');
+                return;
+            }
+
+            try {
+                // Load the project data
+                const fileName = `projects/${projectId}.json`;
+                const url = `${R2_CONFIG.publicUrl}/${fileName}`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load project data');
+                }
+
+                const projectFile = await response.json();
+
+                // Update the project name
+                projectFile.name = newName;
+                projectFile.lastModified = new Date().toISOString();
+
+                // Save back to R2
+                await uploadToR2(fileName, JSON.stringify(projectFile), 'application/json');
+
+                // Update project list
+                await updateProjectList(projectId, newName);
+
+                // Refresh all dropdowns
+                await loadProjectList();
+                await populateDeleteDropdown();
+
+                // If this is the current project, update the display
+                if (currentProjectId === projectId) {
+                    localStorage.setItem('project_name', newName);
+                    updateProjectName(newName);
+                }
+
+                alert(`Project renamed successfully to "${newName}"`);
+
+            } catch (error) {
+                console.error('Error renaming project:', error);
+                alert('Failed to rename project: ' + error.message);
+            }
         }
 
         // Delete project with confirmation
@@ -2714,7 +2802,14 @@
             });
 
             if (!response.ok && response.status !== 404) {
-                throw new Error(`Delete failed: ${response.status}`);
+                const errorText = await response.text();
+                console.error('R2 Delete Error:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorText,
+                    url: url
+                });
+                throw new Error(`Delete failed: ${response.status} - ${errorText}`);
             }
         }
 
@@ -2750,6 +2845,7 @@
         document.getElementById('saveSettings').addEventListener('click', saveSettings);
         document.getElementById('clearApiKey').addEventListener('click', clearApiKey);
         document.getElementById('cancelSettings').addEventListener('click', closeSettings);
+        document.getElementById('renameProjectBtn').addEventListener('click', renameProject);
         document.getElementById('deleteProjectBtn').addEventListener('click', deleteProject);
 
         // Modal action button event listeners
