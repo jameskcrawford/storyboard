@@ -1055,7 +1055,7 @@
                     <button id="deleteProjectBtn" style="background-color: #F44336; color: #fff; width: 100%;">🗑️ Delete Project</button>
                 </div>
                 <p class="info-text" style="margin-top: 10px;">
-                    Warning: This will permanently delete the project and all associated videos from cloud storage.
+                    Warning: This will remove the project from the list. Files will remain in cloud storage but won't be accessible through the app.
                 </p>
             </div>
 
@@ -1296,7 +1296,8 @@
         // Load project list from R2
         async function loadProjectList() {
             try {
-                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json`;
+                // Add cache busting to force fresh fetch
+                const listUrl = `${R2_CONFIG.publicUrl}/projects/index.json?t=${Date.now()}`;
                 const response = await fetch(listUrl);
 
                 if (!response.ok) {
@@ -2674,14 +2675,21 @@
                 // Update project list
                 await updateProjectList(projectId, newName);
 
-                // Refresh all dropdowns
-                await loadProjectList();
-                await populateDeleteDropdown();
-
                 // If this is the current project, update the display
                 if (currentProjectId === projectId) {
                     localStorage.setItem('project_name', newName);
                     updateProjectName(newName);
+                }
+
+                // Refresh all dropdowns
+                await loadProjectList();
+                await populateDeleteDropdown();
+
+                // Update the selector to show the new name
+                const selector = document.getElementById('projectSelector');
+                if (currentProjectId === projectId) {
+                    // Re-select the current project to show updated name
+                    selector.value = projectId;
                 }
 
                 alert(`Project renamed successfully to "${newName}"`);
@@ -2719,15 +2727,13 @@
             }
 
             try {
-                // Delete project file from R2
-                const projectFileName = `projects/${projectId}.json`;
-                await deleteFromR2(projectFileName);
+                // Note: We can't actually delete files from R2 via browser due to CORS restrictions
+                // Instead, we just remove the project from the index so it won't appear
+                // The actual files remain in R2 but become "hidden"
 
-                // Delete videos folder (note: R2 doesn't have folder deletion, so we note this)
-                // Videos will remain but won't be referenced
-                console.log(`Videos in videos/${projectId}/ will remain in storage`);
+                console.log(`Removing project from index (files will remain in R2 storage)`);
 
-                // Update project list
+                // Update project list (remove from index)
                 await removeFromProjectList(projectId);
 
                 // Refresh project list in dropdown and delete dropdown
